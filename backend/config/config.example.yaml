@@ -1,0 +1,109 @@
+# Ethos AI Configuration Example
+# Copy this file to ~/.ethos_ai/config/config.yaml and add your API keys
+
+models:
+  llama3-70b:
+    name: "LLaMA 3 70B"
+    type: "local"
+    provider: "ollama"
+    endpoint: "http://localhost:11434"
+    capabilities: ["general_chat", "reasoning"]
+    parameters:
+      model: "llama3.2:70b"
+      temperature: 0.7
+      max_tokens: 4096
+    enabled: true
+
+  deepseek-r1:
+    name: "DeepSeek R1"
+    type: "local"
+    provider: "ollama"
+    endpoint: "http://localhost:11434"
+    capabilities: ["math", "logic", "reasoning"]
+    parameters:
+      model: "deepseek-coder:33b"
+      temperature: 0.3
+      max_tokens: 4096
+    enabled: true
+
+  codellama:
+    name: "CodeLLaMA"
+    type: "local"
+    provider: "ollama"
+    endpoint: "http://localhost:11434"
+    capabilities: ["coding", "programming"]
+    parameters:
+      model: "codellama:34b"
+      temperature: 0.2
+      max_tokens: 4096
+    enabled: true
+
+  llava-next:
+    name: "LLaVA Next"
+    type: "local"
+    provider: "ollama"
+    endpoint: "http://localhost:11434"
+    capabilities: ["image_analysis", "vision"]
+    parameters:
+      model: "llava:latest"
+      temperature: 0.7
+      max_tokens: 2048
+    enabled: true
+
+  claude-3.5:
+    name: "Claude 3.5 Sonnet"
+    type: "cloud"
+    provider: "anthropic"
+    capabilities: ["general_chat", "reasoning", "writing"]
+    parameters:
+      model: "claude-3-5-sonnet-20241022"
+      temperature: 0.7
+      max_tokens: 4096
+    enabled: false  # Set to true and add API key to enable
+
+  gpt-4:
+    name: "GPT-4"
+    type: "cloud"
+    provider: "openai"
+    capabilities: ["general_chat", "reasoning"]
+    parameters:
+      model: "gpt-4"
+      temperature: 0.7
+      max_tokens: 4096
+    enabled: false  # Set to true and add API key to enable
+
+orchestration:
+  routing:
+    math_logic: ["deepseek-r1", "llama3-70b"]
+    coding: ["codellama", "deepseek-r1"]
+    general_chat: ["llama3-70b", "deepseek-r1"]
+    image_analysis: ["llava-next"]
+    image_generation: ["flux-1"]
+  fallback_order: ["llama3-70b", "deepseek-r1", "codellama"]
+  prefer_local: true
+  max_retries: 3
+
+tools:
+  python_execution: true
+  web_search: true
+  file_search: true
+  code_execution: true
+  sandbox_mode: true
+
+memory:
+  vector_store: "chromadb"
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  max_memory_size: 10000
+  similarity_threshold: 0.7
+
+ui:
+  theme: "dark"
+  language: "en"
+  auto_save: true
+  max_conversations: 100
+
+# Add your API keys here (DO NOT commit this file with real keys)
+api_keys:
+  anthropic: ""  # Add your Anthropic API key here
+  openai: ""     # Add your OpenAI API key here
+  huggingface: "" # Add your Hugging Face token here 
