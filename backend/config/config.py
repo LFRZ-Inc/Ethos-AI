@@ -99,55 +99,55 @@ class Config:
         """Get default configuration"""
         return {
             "models": {
-                "llama3-70b": {
-                    "name": "LLaMA 3 70B",
+                "llama3.2-3b": {
+                    "name": "Llama 3.2 3B",
                     "type": "local",
                     "provider": "ollama",
                     "endpoint": "http://localhost:11434",
                     "capabilities": ["general_chat", "reasoning"],
                     "parameters": {
-                        "model": "llama3.2:70b",
+                        "model": "llama3.2:3b",
                         "temperature": 0.7,
                         "max_tokens": 4096
                     },
                     "enabled": True
                 },
-                "deepseek-r1": {
-                    "name": "DeepSeek R1",
-                    "type": "local",
-                    "provider": "ollama",
-                    "endpoint": "http://localhost:11434",
-                    "capabilities": ["math", "logic", "reasoning"],
-                    "parameters": {
-                        "model": "deepseek-coder:33b",
-                        "temperature": 0.3,
-                        "max_tokens": 4096
-                    },
-                    "enabled": True
-                },
-                "codellama": {
-                    "name": "CodeLLaMA",
+                "codellama-7b": {
+                    "name": "CodeLLaMA 7B",
                     "type": "local",
                     "provider": "ollama",
                     "endpoint": "http://localhost:11434",
                     "capabilities": ["coding", "programming"],
                     "parameters": {
-                        "model": "codellama:34b",
+                        "model": "codellama:7b",
                         "temperature": 0.2,
                         "max_tokens": 4096
                     },
                     "enabled": True
                 },
-                "llava-next": {
-                    "name": "LLaVA Next",
+                "llava-7b": {
+                    "name": "LLaVA 7B",
                     "type": "local",
                     "provider": "ollama",
                     "endpoint": "http://localhost:11434",
                     "capabilities": ["image_analysis", "vision"],
                     "parameters": {
-                        "model": "llava:latest",
+                        "model": "llava:7b",
                         "temperature": 0.7,
                         "max_tokens": 2048
+                    },
+                    "enabled": True
+                },
+                "llama3.1-70b": {
+                    "name": "Llama 3.1 70B",
+                    "type": "local",
+                    "provider": "ollama",
+                    "endpoint": "http://localhost:11434",
+                    "capabilities": ["general_chat", "reasoning", "math"],
+                    "parameters": {
+                        "model": "llama3.1:70b",
+                        "temperature": 0.7,
+                        "max_tokens": 4096
                     },
                     "enabled": True
                 },
@@ -178,13 +178,13 @@ class Config:
             },
             "orchestration": {
                 "routing": {
-                    "math_logic": ["deepseek-r1", "llama3-70b"],
-                    "coding": ["codellama", "deepseek-r1"],
-                    "general_chat": ["llama3-70b", "deepseek-r1"],
-                    "image_analysis": ["llava-next"],
+                    "math_logic": ["llama3.1-70b", "llama3.2-3b"],
+                    "coding": ["codellama-7b", "llama3.2-3b"],
+                    "general_chat": ["llama3.2-3b", "llama3.1-70b"],
+                    "image_analysis": ["llava-7b"],
                     "image_generation": ["flux-1"]
                 },
-                "fallback_order": ["llama3-70b", "deepseek-r1", "codellama"],
+                "fallback_order": ["llama3.2-3b", "codellama-7b", "llama3.1-70b"],
                 "prefer_local": True,
                 "max_retries": 3
             },
