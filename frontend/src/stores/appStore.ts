@@ -84,7 +84,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   loadConversations: async () => {
     set({ isLoading: true });
     try {
-      const response = await fetch('http://localhost:8000/api/conversations');
+      const response = await fetch('http://localhost:8002/api/conversations');
       if (response.ok) {
         const data = await response.json();
         // Handle both direct array and object with conversations property

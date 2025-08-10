@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import MessageComponent from './MessageComponent';
 import ModelSelector from './ModelSelector';
 import ToolPanel from './ToolPanel';
+import { API_ENDPOINTS } from '../config';
 
 const ChatInterface: React.FC = () => {
   const { conversationId } = useParams();
@@ -38,7 +39,7 @@ const ChatInterface: React.FC = () => {
 
   const loadConversation = async (id: string) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/conversations/${id}`);
+      const response = await fetch(`${API_ENDPOINTS.conversations}/${id}`);
       if (response.ok) {
         const conversation = await response.json();
         // Load messages into chat store
@@ -80,7 +81,7 @@ const ChatInterface: React.FC = () => {
       let convId = currentConversationId;
       if (!convId) {
         try {
-          const response = await fetch('http://localhost:8000/api/conversations', {
+          const response = await fetch(API_ENDPOINTS.conversations, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: input.substring(0, 50) + '...' }),
@@ -98,7 +99,7 @@ const ChatInterface: React.FC = () => {
       }
 
       // Send message to backend
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(API_ENDPOINTS.chat, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -152,7 +153,7 @@ const ChatInterface: React.FC = () => {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('http://localhost:8000/api/upload', {
+        const response = await fetch(API_ENDPOINTS.upload, {
           method: 'POST',
           body: formData,
         });

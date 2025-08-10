@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, Bot } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
+import { API_ENDPOINTS } from '../config';
 
 interface Model {
   id: string;
@@ -23,7 +24,7 @@ const ModelSelector: React.FC = () => {
   const loadModels = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/models');
+      const response = await fetch(API_ENDPOINTS.models);
       if (response.ok) {
         const modelData = await response.json();
         // Handle both array and object with models property
