@@ -22,7 +22,7 @@ const Sidebar: React.FC = () => {
     
     if (confirm('Are you sure you want to delete this conversation?')) {
       try {
-        const response = await fetch(`http://localhost:8002/api/conversations/${id}`, {
+        const response = await fetch(`http://localhost:8003/api/conversations/${id}`, {
           method: 'DELETE',
         });
         

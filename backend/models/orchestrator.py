@@ -8,7 +8,7 @@ import logging
 import re
 import time
 from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .base_model import BaseModel
 from .ollama_model import OllamaModel
@@ -19,14 +19,14 @@ from .flux_model import FluxModel
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class ModelResponse:
     """Response from a model"""
-    content: str
-    model_used: str
-    tokens_used: int = 0
-    processing_time: float = 0.0
-    tools_called: List[Dict] = None
+    def __init__(self, content: str, model_used: str, tokens_used: int = 0, processing_time: float = 0.0, tools_called=None):
+        self.content = content
+        self.model_used = model_used
+        self.tokens_used = tokens_used
+        self.processing_time = processing_time
+        self.tools_called = tools_called or []
 
 class ModelOrchestrator:
     """Orchestrates multiple AI models for optimal response"""
@@ -123,23 +123,18 @@ class ModelOrchestrator:
             # Process with the model
             response = await model.generate(content, context=context)
             
+            # The response is already a ModelResponse object, just update the model_used
+            response.model_used = selected_model_id
+            
             # Calculate processing time
             processing_time = time.time() - start_time
-            
-            # Create response object
-            model_response = ModelResponse(
-                content=response.get("content", "No response generated"),
-                model_used=selected_model_id,
-                tokens_used=response.get("tokens_used", 0),
-                processing_time=processing_time,
-                tools_called=response.get("tools_called", [])
-            )
+            response.processing_time = processing_time
             
             # Store in memory if vector store is available
             if self.vector_store:
-                await self._store_in_memory(content, model_response.content, conversation_id)
+                await self._store_in_memory(content, response.content, conversation_id)
             
-            return model_response
+            return response
             
         except Exception as e:
             logger.error(f"Error processing message: {e}")
@@ -147,8 +142,7 @@ class ModelOrchestrator:
             return ModelResponse(
                 content=f"I apologize, but I encountered an error: {str(e)}. Please try again or check your model configuration.",
                 model_used="fallback",
-                processing_time=time.time() - start_time,
-                tools_called=[]
+                processing_time=time.time() - start_time
             )
     
     async def _select_model(self, content: str) -> Optional[str]:

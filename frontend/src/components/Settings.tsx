@@ -18,7 +18,7 @@ const Settings: React.FC = () => {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/config');
+      const response = await fetch('http://localhost:8003/api/config');
       if (response.ok) {
         const config = await response.json();
         // Load API keys from config (if available)
@@ -41,7 +41,7 @@ const Settings: React.FC = () => {
   const handleSave = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8002/api/config', {
+      const response = await fetch('http://localhost:8003/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

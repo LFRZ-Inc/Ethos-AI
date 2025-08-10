@@ -91,8 +91,7 @@ class OllamaModel(BaseModel):
                 content=content,
                 model_used=self.model_id,
                 tokens_used=result.get("eval_count", 0),
-                processing_time=processing_time,
-                tools_called=None
+                processing_time=processing_time
             )
             
         except Exception as e:
