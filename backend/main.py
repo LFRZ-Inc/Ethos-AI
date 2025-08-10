@@ -193,9 +193,9 @@ async def chat(message: ChatMessage):
         await database.add_message(
             conversation_id=conv_id,
             user_message=message.content,
-            assistant_message=response.content,
+            ai_response=response.content,
             model_used=response.model_used,
-            tools_called=response.tools_called
+            metadata={"tools_called": response.tools_called} if response.tools_called else None
         )
         
         return ChatResponse(
