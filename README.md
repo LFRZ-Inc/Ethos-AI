@@ -2,7 +2,61 @@
 
 A powerful, privacy-focused AI interface that runs entirely on your device, combining local models with cloud APIs for optimal performance.
 
-## Features
+## 🚀 **Quick Start - Run Locally**
+
+This is a **local-first application** that runs on your computer. It's not a web app - you need to run it locally to use it.
+
+### **Option 1: Simple Setup (Recommended)**
+```bash
+# 1. Clone the repository
+git clone https://github.com/LFRZ-Inc/Ethos-AI.git
+cd Ethos-AI
+
+# 2. Install backend dependencies
+cd backend
+pip install -r requirements.txt
+
+# 3. Install frontend dependencies  
+cd ../frontend
+npm install
+
+# 4. Start the application
+# Terminal 1: Start backend
+cd backend
+python main.py
+
+# Terminal 2: Start frontend (in new terminal)
+cd frontend
+npm run dev
+```
+
+### **Option 2: Use the Mock Backend (Easiest)**
+If you don't have AI models set up yet:
+```bash
+# Start with mock backend (no AI models needed)
+cd backend
+python simple_main.py
+
+# Start frontend
+cd ../frontend
+npm run dev
+```
+
+## 🌐 **Access the Application**
+
+Once running, open your browser and go to:
+- **Frontend**: http://localhost:1420
+- **Backend API**: http://localhost:8000
+
+## 📱 **What You'll See**
+
+- **Chat Interface**: Send messages and get AI responses
+- **Model Selection**: Choose between different AI models
+- **Conversation History**: Save and manage your chats
+- **Settings**: Configure API keys and preferences
+- **File Upload**: Upload documents for analysis
+
+## 🔧 **Features**
 
 - **Multi-Model Orchestration**: Intelligent routing between local and cloud models
 - **Local-First Architecture**: All data stored locally, works offline
@@ -11,7 +65,7 @@ A powerful, privacy-focused AI interface that runs entirely on your device, comb
 - **Tool Calling**: Code execution, web search, file analysis
 - **Cross-Platform**: Windows, macOS, and Linux support
 
-## Models Supported
+## 🤖 **Models Supported**
 
 ### Local Models (via Ollama/LM Studio)
 - LLaMA 3 70B (quantized) - General chat
@@ -24,65 +78,37 @@ A powerful, privacy-focused AI interface that runs entirely on your device, comb
 - Claude 3.5 Sonnet - Deep reasoning and writing
 - OpenAI GPT-4 - Fallback option
 
-## Quick Start
+## 📋 **Prerequisites**
 
-### Prerequisites
 - Python 3.11+
 - Node.js 18+
-- Ollama (for local models)
+- Ollama (for local models) - Optional
 - 16GB+ RAM recommended
 
-### Installation
+## 🔑 **Configuration**
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd Ethos-AI
-   ```
+### API Keys (Optional)
+For cloud models, add your API keys in the Settings page:
+- **Anthropic API Key** - For Claude models
+- **OpenAI API Key** - For GPT models
+- **Hugging Face Token** - For HF models
 
-2. **Install Python dependencies**
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
+### Local Models Setup
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
 
-3. **Install frontend dependencies**
-   ```bash
-   cd ../frontend
-   npm install
-   ```
+# Pull required models
+ollama pull llama3.2:70b
+ollama pull deepseek-coder:33b
+ollama pull llava:latest
+```
 
-4. **Setup local models**
-   ```bash
-   # Install Ollama
-   curl -fsSL https://ollama.ai/install.sh | sh
-   
-   # Pull required models
-   ollama pull llama3.2:70b
-   ollama pull deepseek-coder:33b
-   ollama pull llava:latest
-   ```
-
-5. **Configure API keys**
-   - Copy `backend/config/config.example.yaml` to `backend/config/config.yaml`
-   - Add your API keys for Claude, OpenAI, etc.
-
-6. **Start the application**
-   ```bash
-   # Terminal 1: Start backend
-   cd backend
-   python main.py
-   
-   # Terminal 2: Start frontend
-   cd frontend
-   npm run dev
-   ```
-
-## Project Structure
+## 📁 **Project Structure**
 
 ```
 Ethos-AI/
-├── frontend/                 # Tauri + React UI
+├── frontend/                 # React UI
 ├── backend/                  # Python orchestration
 │   ├── models/              # Model connectors
 │   ├── memory/              # Vector store & embeddings
@@ -93,77 +119,50 @@ Ethos-AI/
 └── scripts/                  # Build and deployment scripts
 ```
 
-## Configuration
+## 🛠 **Development**
 
-### Model Orchestration
-Edit `backend/config/orchestration.yaml` to customize routing logic:
-
-```yaml
-routing:
-  math_logic:
-    - deepseek-r1
-    - claude-3.5
-  coding:
-    - codellama
-    - claude-3.5
-  general_chat:
-    - llama3-70b
-    - claude-3.5
-  image_analysis:
-    - llava-next
-  image_generation:
-    - flux-1
+### Backend Development
+```bash
+cd backend
+python main.py
 ```
 
-### Adding New Models
-1. Create model connector in `backend/models/`
-2. Add configuration in `backend/config/models.yaml`
-3. Update orchestration rules
-
-## Data Storage
-
-All data is stored locally in `~/EthosAIData/`:
-- `conversations/` - Chat history
-- `embeddings/` - Vector database
-- `models/` - Downloaded models
-- `config/` - User preferences
-
-## Building for Distribution
-
-### Windows
+### Frontend Development
 ```bash
 cd frontend
-npm run tauri build
+npm run dev
 ```
 
-### macOS
+### Building for Distribution
 ```bash
 cd frontend
-npm run tauri build
+npm run build
 ```
 
-### Linux
-```bash
-cd frontend
-npm run tauri build
-```
+## 🔒 **Privacy & Data**
 
-## Offline Mode
+- **All data stored locally** on your device
+- **No data sent to external servers** (except when using cloud APIs)
+- **Vector database** for semantic search of your conversations
+- **SQLite database** for conversation storage
 
-Ethos AI works completely offline once local models are downloaded:
-- All conversations stored locally
-- Vector search works without internet
-- Local models handle all requests
-- Graceful fallback when cloud APIs unavailable
+## 🆘 **Troubleshooting**
 
-## Contributing
+### Common Issues:
+1. **Port 1420 or 8000 in use**: Kill existing processes or change ports
+2. **Python dependencies**: Make sure you're in the backend directory when installing
+3. **Node modules**: Run `npm install` in the frontend directory
+4. **AI models not working**: Use the mock backend (`simple_main.py`) for testing
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests
-5. Submit a pull request
+### Getting Help:
+- Check the console for error messages
+- Make sure both backend and frontend are running
+- Try the mock backend first to test the UI
 
-## License
+## 📄 **License**
 
-MIT License - see LICENSE file for details. 
+MIT License - see LICENSE file for details.
+
+---
+
+**Note**: This is a local application. The GitHub repository shows the README by default - this is normal. To use the application, you need to clone and run it locally on your computer. 
