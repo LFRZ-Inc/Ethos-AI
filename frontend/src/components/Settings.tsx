@@ -21,9 +21,16 @@ const Settings: React.FC = () => {
       const response = await fetch('http://localhost:8000/api/config');
       if (response.ok) {
         const config = await response.json();
-        // Load API keys from config
+        // Load API keys from config (if available)
         if (config.api_keys) {
           setApiKeys(config.api_keys);
+        } else {
+          // Initialize with empty API keys if not provided
+          setApiKeys({
+            anthropic: '',
+            openai: '',
+            huggingface: '',
+          });
         }
       }
     } catch (error) {
@@ -194,7 +201,7 @@ const Settings: React.FC = () => {
                   <button
                     onClick={() => {
                       // Export conversations
-                      toast.info('Export feature coming soon');
+                      toast('Export feature coming soon');
                     }}
                     className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg text-left hover:bg-gray-50 dark:hover:bg-gray-700"
                   >
@@ -205,7 +212,7 @@ const Settings: React.FC = () => {
                   <button
                     onClick={() => {
                       if (confirm('This will delete all conversations and data. Are you sure?')) {
-                        toast.info('Clear data feature coming soon');
+                        toast('Clear data feature coming soon');
                       }
                     }}
                     className="w-full p-3 border border-red-300 dark:border-red-600 rounded-lg text-left hover:bg-red-50 dark:hover:bg-red-900/20"

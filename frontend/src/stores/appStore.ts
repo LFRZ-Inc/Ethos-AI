@@ -85,11 +85,18 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     set({ isLoading: true });
     try {
       const response = await fetch('http://localhost:8000/api/conversations');
-      const conversations = await response.json();
-      set({ conversations, isLoading: false });
+      if (response.ok) {
+        const data = await response.json();
+        // Handle both direct array and object with conversations property
+        const conversationsArray = Array.isArray(data) ? data : (data.conversations || []);
+        set({ conversations: conversationsArray, isLoading: false });
+      } else {
+        console.warn('Failed to load conversations:', response.status, response.statusText);
+        set({ conversations: [], isLoading: false });
+      }
     } catch (error) {
       console.error('Failed to load conversations:', error);
-      set({ isLoading: false });
+      set({ conversations: [], isLoading: false });
     }
   },
   addConversation: (conversation) => set((state) => ({

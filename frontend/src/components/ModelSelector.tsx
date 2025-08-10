@@ -26,10 +26,16 @@ const ModelSelector: React.FC = () => {
       const response = await fetch('http://localhost:8000/api/models');
       if (response.ok) {
         const modelData = await response.json();
-        setModels(modelData);
+        // Handle both array and object with models property
+        const modelsArray = Array.isArray(modelData) ? modelData : (modelData.models || []);
+        setModels(Array.isArray(modelsArray) ? modelsArray : []);
+      } else {
+        console.warn('Failed to load models:', response.status);
+        setModels([]);
       }
     } catch (error) {
       console.error('Failed to load models:', error);
+      setModels([]);
     } finally {
       setLoading(false);
     }
@@ -40,7 +46,7 @@ const ModelSelector: React.FC = () => {
     setIsOpen(false);
   };
 
-  const selectedModelData = models.find(m => m.id === selectedModel);
+  const selectedModelData = Array.isArray(models) ? models.find(m => m.id === selectedModel) : null;
 
   return (
     <div className="relative">
@@ -80,7 +86,7 @@ const ModelSelector: React.FC = () => {
                   </div>
                 </button>
                 
-                {models.map((model) => (
+                {Array.isArray(models) && models.map((model) => (
                   <button
                     key={model.id}
                     onClick={() => handleModelSelect(model.id)}

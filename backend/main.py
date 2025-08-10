@@ -7,8 +7,9 @@ Local-first hybrid AI interface
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,10 @@ import uvicorn
 
 # Load environment variables
 from dotenv import load_dotenv
-load_dotenv()
+try:
+    load_dotenv()
+except Exception as e:
+    print(f"Warning: Could not load .env file: {e}")
 
 # Import our modules
 from config.config import Config
@@ -85,12 +89,29 @@ async def startup_event():
         config = Config()
         database = Database(config.data_dir)
         await database.initialize()
-        vector_store = VectorStore(config.data_dir)
-        await vector_store.initialize()
-        tool_manager = ToolManager(config, database, vector_store)
-        await tool_manager.initialize()
+        
+        # Initialize vector store
+        try:
+            vector_store = VectorStore(config.data_dir)
+            await vector_store.initialize()
+            logger.info("Vector store initialized successfully")
+        except Exception as e:
+            logger.warning(f"Vector store initialization failed: {e}")
+            vector_store = None
+        
+        # Initialize tool manager
+        try:
+            tool_manager = ToolManager(config, database, vector_store)
+            await tool_manager.initialize()
+            logger.info("Tool manager initialized successfully")
+        except Exception as e:
+            logger.warning(f"Tool manager initialization failed: {e}")
+            tool_manager = None
+        
+        # Initialize orchestrator with all components
         orchestrator = ModelOrchestrator(config, vector_store, tool_manager)
         await orchestrator.initialize()
+        
         logger.info("Ethos AI backend started successfully")
     except Exception as e:
         logger.error(f"Failed to start backend: {e}")
@@ -100,106 +121,165 @@ async def startup_event():
 async def shutdown_event():
     logger.info("Shutting down Ethos AI backend...")
     if orchestrator:
-        await orchestrator.cleanup()
+        try:
+            await orchestrator.cleanup()
+        except Exception as e:
+            logger.error(f"Error cleaning up orchestrator: {e}")
+    
     if vector_store:
-        await vector_store.cleanup()
+        try:
+            await vector_store.cleanup()
+        except Exception as e:
+            logger.error(f"Error cleaning up vector store: {e}")
+    
+    if tool_manager:
+        try:
+            if hasattr(tool_manager, 'cleanup'):
+                await tool_manager.cleanup()
+        except Exception as e:
+            logger.error(f"Error cleaning up tool manager: {e}")
+    
     if database:
-        await database.cleanup()
-    logger.info("Ethos AI backend shutdown complete")
+        try:
+            if hasattr(database, 'close'):
+                await database.close()
+            elif hasattr(database, 'cleanup'):
+                await database.cleanup()
+        except Exception as e:
+            logger.error(f"Error closing database: {e}")
 
-# Health check endpoint
+# API endpoints
 @app.get("/")
 async def root():
-    return {
-        "message": "Ethos AI Backend is running!",
-        "status": "healthy",
-        "version": "1.0.0"
-    }
+    return {"message": "Ethos AI Backend is running!", "status": "healthy"}
 
 @app.get("/health")
 async def health():
     return {
-        "status": "healthy",
+        "status": "healthy", 
         "service": "ethos-ai-backend",
-        "models_available": len(config.get_enabled_models()) if config else 0
+        "timestamp": time.time(),
+        "components": {
+            "database": database is not None,
+            "vector_store": vector_store is not None,
+            "tool_manager": tool_manager is not None,
+            "orchestrator": orchestrator is not None
+        }
     }
 
-# Chat endpoint
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
-    if not orchestrator:
-        raise HTTPException(status_code=503, detail="Orchestrator not initialized")
-    
     try:
+        if not orchestrator:
+            raise HTTPException(status_code=500, detail="Orchestrator not initialized")
+        
+        # Get conversation ID
+        conv_id = message.conversation_id
+        if not conv_id:
+            # Create new conversation
+            conv_id = await database.create_conversation(
+                title=message.content[:50] + "..." if len(message.content) > 50 else message.content
+            )
+        
+        # Process message with orchestrator
         response = await orchestrator.process_message(
-            content=message.content,
-            conversation_id=message.conversation_id,
+            message.content,
+            conversation_id=conv_id,
             model_override=message.model_override,
             use_tools=message.use_tools
         )
-        return ChatResponse(**response)
+        
+        # Store message in database
+        await database.add_message(
+            conversation_id=conv_id,
+            user_message=message.content,
+            assistant_message=response.content,
+            model_used=response.model_used,
+            tools_called=response.tools_called
+        )
+        
+        return ChatResponse(
+            content=response.content,
+            model_used=response.model_used,
+            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+            tools_called=response.tools_called
+        )
+        
     except Exception as e:
         logger.error(f"Error processing chat message: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Models endpoint
 @app.get("/api/models")
 async def get_models():
-    if not config:
-        raise HTTPException(status_code=503, detail="Config not initialized")
-    
-    models = []
-    for model_id, model_config in config.get_enabled_models().items():
-        models.append({
-            "id": model_id,
-            "name": model_config.name,
-            "type": model_config.type,
-            "provider": model_config.provider,
-            "capabilities": model_config.capabilities,
-            "enabled": model_config.enabled
-        })
-    
-    return {"models": models}
+    try:
+        if not config:
+            raise HTTPException(status_code=500, detail="Config not initialized")
+        
+        models = []
+        for model_id, model_config in config.get_enabled_models().items():
+            models.append({
+                "id": model_id,
+                "name": model_config.name,
+                "type": model_config.type,
+                "provider": model_config.provider,
+                "capabilities": model_config.capabilities,
+                "enabled": model_config.enabled,
+                "status": "available" if model_config.enabled else "disabled"
+            })
+        
+        return {"models": models}
+        
+    except Exception as e:
+        logger.error(f"Error getting models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Conversations endpoints
 @app.post("/api/conversations")
 async def create_conversation(conversation: ConversationCreate):
-    if not database:
-        raise HTTPException(status_code=503, detail="Database not initialized")
-    
     try:
+        if not database:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         conv_id = await database.create_conversation(conversation.title)
+        conv_data = await database.get_conversation(conv_id)
+        
         return ConversationResponse(
             conversation_id=conv_id,
-            title=conversation.title,
-            created_at=conv_id  # Simplified for now
+            title=conv_data["title"],
+            created_at=conv_data["created_at"]
         )
+        
     except Exception as e:
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/conversations")
 async def get_conversations():
-    if not database:
-        raise HTTPException(status_code=503, detail="Database not initialized")
-    
     try:
+        if not database:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         conversations = await database.get_conversations()
         return {"conversations": conversations}
+        
     except Exception as e:
         logger.error(f"Error getting conversations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str):
-    if not database:
-        raise HTTPException(status_code=503, detail="Database not initialized")
-    
     try:
+        if not database:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         conversation = await database.get_conversation(conversation_id)
         if not conversation:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        messages = await database.get_messages(conversation_id)
+        conversation["messages"] = messages
+        
         return conversation
+        
     except HTTPException:
         raise
     except Exception as e:
@@ -208,87 +288,99 @@ async def get_conversation(conversation_id: str):
 
 @app.delete("/api/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):
-    if not database:
-        raise HTTPException(status_code=503, detail="Database not initialized")
-    
     try:
+        if not database:
+            raise HTTPException(status_code=500, detail="Database not initialized")
+        
         await database.delete_conversation(conversation_id)
+        
+        # Also delete from vector store if available
+        if vector_store:
+            try:
+                await vector_store.delete_conversation(conversation_id)
+            except Exception as e:
+                logger.warning(f"Error deleting from vector store: {e}")
+        
         return {"message": "Conversation deleted successfully"}
+        
     except Exception as e:
         logger.error(f"Error deleting conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# File upload endpoint
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
-    if not tool_manager:
-        raise HTTPException(status_code=503, detail="Tool manager not initialized")
-    
     try:
-        result = await tool_manager.handle_file_upload(file)
+        if not tool_manager:
+            raise HTTPException(status_code=500, detail="Tool manager not initialized")
+        
+        result = await tool_manager.process_file_upload(file)
         return result
+        
     except Exception as e:
         logger.error(f"Error uploading file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Memory search endpoint
 @app.get("/api/memory/search")
 async def search_memory(query: str, limit: int = 10):
-    if not vector_store:
-        raise HTTPException(status_code=503, detail="Vector store not initialized")
-    
     try:
+        if not vector_store:
+            raise HTTPException(status_code=503, detail="Vector store not available")
+        
         results = await vector_store.search(query, limit=limit)
         return {"results": results}
+        
     except Exception as e:
         logger.error(f"Error searching memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Tools endpoint
 @app.post("/api/tools/{tool_name}")
-async def execute_tool(tool_name: str, **kwargs):
-    if not tool_manager:
-        raise HTTPException(status_code=503, detail="Tool manager not initialized")
-    
+async def execute_tool(tool_name: str, parameters: Dict[str, Any]):
     try:
-        result = await tool_manager.execute_tool(tool_name, **kwargs)
+        if not tool_manager:
+            raise HTTPException(status_code=503, detail="Tool manager not available")
+        
+        result = await tool_manager.execute_tool(tool_name, parameters)
         return {"result": result}
+        
     except Exception as e:
         logger.error(f"Error executing tool {tool_name}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# Configuration endpoint
 @app.get("/api/config")
 async def get_config():
-    if not config:
-        raise HTTPException(status_code=503, detail="Config not initialized")
-    
-    return config.get_public_config()
+    try:
+        if not config:
+            raise HTTPException(status_code=500, detail="Config not initialized")
+        
+        return config.get_public_config()
+        
+    except Exception as e:
+        logger.error(f"Error getting config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/config")
 async def update_config(config_data: dict):
-    if not config:
-        raise HTTPException(status_code=503, detail="Config not initialized")
-    
     try:
+        if not config:
+            raise HTTPException(status_code=500, detail="Config not initialized")
+        
         config.update_config(config_data)
         return {"message": "Configuration updated successfully"}
+        
     except Exception as e:
         logger.error(f"Error updating config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-# WebSocket endpoint for real-time chat
 @app.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     try:
         while True:
             data = await websocket.receive_text()
-            # Process the message and send response
-            response = {"message": f"Echo: {data}"}
-            await websocket.send_text(str(response))
+            # Handle WebSocket messages
+            await websocket.send_text(f"Message received: {data}")
     except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected")
+        logger.info("WebSocket disconnected")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info") 

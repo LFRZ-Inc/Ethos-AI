@@ -50,10 +50,13 @@ const ChatInterface: React.FC = () => {
           modelUsed: msg.model_used,
         }));
         useChatStore.setState({ messages: chatMessages });
+      } else {
+        console.warn('Failed to load conversation:', response.status);
+        // Don't show error toast for now, just log it
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
-      toast.error('Failed to load conversation');
+      // Don't show error toast for now, just log it
     }
   };
 
@@ -76,14 +79,22 @@ const ChatInterface: React.FC = () => {
       // Create conversation if needed
       let convId = currentConversationId;
       if (!convId) {
-        const response = await fetch('http://localhost:8000/api/conversations', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: input.substring(0, 50) + '...' }),
-        });
-        const result = await response.json();
-        convId = result.conversation_id;
-        setCurrentConversation(convId);
+        try {
+          const response = await fetch('http://localhost:8000/api/conversations', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: input.substring(0, 50) + '...' }),
+          });
+          if (response.ok) {
+            const result = await response.json();
+            convId = result.conversation_id;
+            setCurrentConversation(convId);
+          } else {
+            console.error('Failed to create conversation:', response.status);
+          }
+        } catch (error) {
+          console.error('Error creating conversation:', error);
+        }
       }
 
       // Send message to backend
@@ -93,7 +104,7 @@ const ChatInterface: React.FC = () => {
         body: JSON.stringify({
           content: input,
           conversation_id: convId,
-          model_override: selectedModel,
+          model_override: selectedModel || null,
           use_tools: useTools,
         }),
       });
