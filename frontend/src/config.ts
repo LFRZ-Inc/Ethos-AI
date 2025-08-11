@@ -10,6 +10,11 @@ const getApiBaseUrl = () => {
     return 'http://localhost:8003';
   }
   
+  // For Vercel deployment, use the same domain
+  if (window.location.hostname.includes('vercel.app')) {
+    return `https://${window.location.hostname}`;
+  }
+  
   // If accessed from phone/other device, use the PC's IP address
   // Extract the IP from the current URL and use port 8003
   const currentHost = window.location.hostname;
