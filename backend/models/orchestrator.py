@@ -10,23 +10,15 @@ import time
 from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 
-from .base_model import BaseModel
+from .base_model import BaseModel, ModelResponse
 from .ollama_model import OllamaModel
 from .anthropic_model import AnthropicModel
 from .openai_model import OpenAIModel
 from .llava_model import LLaVAModel
 from .flux_model import FluxModel
+from memory.unified_memory import UnifiedMemory
 
 logger = logging.getLogger(__name__)
-
-class ModelResponse:
-    """Response from a model"""
-    def __init__(self, content: str, model_used: str, tokens_used: int = 0, processing_time: float = 0.0, tools_called=None):
-        self.content = content
-        self.model_used = model_used
-        self.tokens_used = tokens_used
-        self.processing_time = processing_time
-        self.tools_called = tools_called or []
 
 class ModelOrchestrator:
     """Orchestrates multiple AI models for optimal response"""
@@ -37,6 +29,7 @@ class ModelOrchestrator:
         self.tool_manager = tool_manager
         self.models: Dict[str, BaseModel] = {}
         self.model_status: Dict[str, str] = {}  # available, unavailable, loading
+        self.unified_memory = None  # Will be initialized after database is available
         
     async def initialize(self):
         """Initialize all models"""
@@ -68,6 +61,11 @@ class ModelOrchestrator:
                 logger.error(f"Error initializing model {model_id}: {e}")
         
         logger.info(f"Model orchestrator initialized with {len(self.models)} models")
+        
+        # Initialize unified memory if database is available
+        if hasattr(self, 'database') and self.database:
+            self.unified_memory = UnifiedMemory(self.database)
+            logger.info("Unified memory system initialized")
     
     async def _create_model(self, model_config) -> Optional[BaseModel]:
         """Create a model instance based on configuration"""
@@ -117,8 +115,8 @@ class ModelOrchestrator:
             # Get the selected model
             model = self.models[selected_model_id]
             
-            # Get conversation context if available
-            context = await self._get_conversation_context(conversation_id)
+            # Get unified context for all models
+            context = await self._get_unified_context(conversation_id)
             
             # Process with the model
             response = await model.generate(content, context=context)
@@ -130,7 +128,13 @@ class ModelOrchestrator:
             processing_time = time.time() - start_time
             response.processing_time = processing_time
             
-            # Store in memory if vector store is available
+            # Store in unified memory
+            if self.unified_memory:
+                await self.unified_memory.add_memory_entry(
+                    conversation_id, content, response.content, selected_model_id
+                )
+            
+            # Also store in vector store if available
             if self.vector_store:
                 await self._store_in_memory(content, response.content, conversation_id)
             
@@ -142,7 +146,8 @@ class ModelOrchestrator:
             return ModelResponse(
                 content=f"I apologize, but I encountered an error: {str(e)}. Please try again or check your model configuration.",
                 model_used="fallback",
-                processing_time=time.time() - start_time
+                processing_time=time.time() - start_time,
+                tools_called=[]
             )
     
     async def _select_model(self, content: str) -> Optional[str]:
@@ -197,11 +202,63 @@ class ModelOrchestrator:
         
         return "general"
     
-    async def _get_conversation_context(self, conversation_id: Optional[str]) -> List[Dict]:
-        """Get conversation context for the model"""
-        # For now, return empty context since we don't have vector store
-        # In a full implementation, this would retrieve relevant context from memory
-        return []
+    async def _get_unified_context(self, conversation_id: Optional[str]) -> List[Dict]:
+        """Get unified context for all models"""
+        if not conversation_id:
+            return []
+        
+        try:
+            # Use unified memory system if available
+            if self.unified_memory:
+                unified_context = await self.unified_memory.get_unified_context(conversation_id)
+                
+                # Format context for models
+                formatted_context = []
+                
+                # Add conversation summary if available
+                if unified_context.get('current_conversation', {}).get('summary'):
+                    formatted_context.append({
+                        'role': 'system',
+                        'content': f"CONVERSATION SUMMARY: {unified_context['current_conversation']['summary']}"
+                    })
+                
+                # Add recent messages
+                messages = unified_context.get('current_conversation', {}).get('messages', [])
+                for msg in messages:
+                    if msg.get('user'):
+                        formatted_context.append({
+                            'role': 'user',
+                            'content': msg['user']
+                        })
+                    if msg.get('assistant'):
+                        formatted_context.append({
+                            'role': 'assistant',
+                            'content': msg['assistant']
+                        })
+                
+                # Add related conversations context
+                related = unified_context.get('related_conversations', [])
+                if related:
+                    related_context = "RELATED CONVERSATIONS:\n"
+                    for conv in related[:2]:  # Limit to 2 related conversations
+                        related_context += f"- {conv['title']} ({conv['message_count']} messages)\n"
+                    formatted_context.append({
+                        'role': 'system',
+                        'content': related_context
+                    })
+                
+                return formatted_context
+            
+            # Fallback to old method
+            elif hasattr(self, 'database') and self.database:
+                messages = await self.database.get_messages(conversation_id)
+                return messages
+            else:
+                return []
+                
+        except Exception as e:
+            logger.error(f"Error getting unified context: {e}")
+            return []
     
     async def _store_in_memory(self, user_message: str, ai_response: str, conversation_id: Optional[str]):
         """Store conversation in memory"""

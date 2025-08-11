@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ethos AI - Network Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌐 Ethos AI - Network Connectivity Test</h1>
+    
+    <div class="test-section">
+        <h2>Network Information</h2>
+        <div id="networkInfo" class="info status">
+            Loading network information...
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Backend Connectivity Tests</h2>
+        <button onclick="testHealth()">Test Health Endpoint</button>
+        <button onclick="testModels()">Test Models Endpoint</button>
+        <button onclick="testChat()">Test Chat Endpoint</button>
+        <button onclick="runAllTests()">Run All Tests</button>
+        
+        <div id="testResults"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Log</h2>
+        <div id="log" class="log"></div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+
+    <script>
+        const PC_IP = '192.168.1.41';
+        const BACKEND_PORT = '8003';
+        const FRONTEND_PORT = '1420';
+        
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        function showResult(testName, success, message) {
+            const resultsDiv = document.getElementById('testResults');
+            const statusClass = success ? 'success' : 'error';
+            resultsDiv.innerHTML += `
+                <div class="status ${statusClass}">
+                    <strong>${testName}:</strong> ${success ? '✅ PASS' : '❌ FAIL'}<br>
+                    ${message}
+                </div>
+            `;
+        }
+
+        function updateNetworkInfo() {
+            const networkInfo = document.getElementById('networkInfo');
+            const currentUrl = window.location.href;
+            const currentHost = window.location.hostname;
+            const currentPort = window.location.port;
+            
+            networkInfo.innerHTML = `
+                <strong>Current Location:</strong> ${currentUrl}<br>
+                <strong>Hostname:</strong> ${currentHost}<br>
+                <strong>Port:</strong> ${currentPort}<br>
+                <strong>PC IP Address:</strong> ${PC_IP}<br>
+                <strong>Backend URL:</strong> http://${currentHost}:${BACKEND_PORT}<br>
+                <strong>Frontend URL:</strong> http://${currentHost}:${FRONTEND_PORT}
+            `;
+        }
+
+        async function testHealth() {
+            log('Testing health endpoint...');
+            try {
+                const response = await fetch(`http://${window.location.hostname}:${BACKEND_PORT}/health`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Health check passed');
+                    showResult('Health Check', true, `Status: ${data.status}, Service: ${data.service}`);
+                } else {
+                    log('❌ Health check failed');
+                    showResult('Health Check', false, `Status: ${response.status}`);
+                }
+            } catch (error) {
+                log(`❌ Health check error: ${error.message}`);
+                showResult('Health Check', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testModels() {
+            log('Testing models endpoint...');
+            try {
+                const response = await fetch(`http://${window.location.hostname}:${BACKEND_PORT}/api/models`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Models endpoint passed');
+                    showResult('Models Endpoint', true, `Found ${data.models.length} models`);
+                } else {
+                    log('❌ Models endpoint failed');
+                    showResult('Models Endpoint', false, `Status: ${response.status}`);
+                }
+            } catch (error) {
+                log(`❌ Models endpoint error: ${error.message}`);
+                showResult('Models Endpoint', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function testChat() {
+            log('Testing chat endpoint...');
+            try {
+                const response = await fetch(`http://${window.location.hostname}:${BACKEND_PORT}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: 'Hello, this is a test message',
+                        conversation_id: null,
+                        use_tools: false
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    log('✅ Chat endpoint passed');
+                    showResult('Chat Endpoint', true, `Response received, model used: ${data.model_used}`);
+                } else {
+                    const errorText = await response.text();
+                    log('❌ Chat endpoint failed');
+                    showResult('Chat Endpoint', false, `Status: ${response.status}, Error: ${errorText}`);
+                }
+            } catch (error) {
+                log(`❌ Chat endpoint error: ${error.message}`);
+                showResult('Chat Endpoint', false, `Error: ${error.message}`);
+            }
+        }
+
+        async function runAllTests() {
+            log('Running all connectivity tests...');
+            document.getElementById('testResults').innerHTML = '';
+            
+            await testHealth();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testModels();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testChat();
+            
+            log('All tests completed');
+        }
+
+        // Initialize
+        updateNetworkInfo();
+        log('Network test page loaded');
+        log(`Testing connectivity to: http://${window.location.hostname}:${BACKEND_PORT}`);
+    </script>
+</body>
+</html> 

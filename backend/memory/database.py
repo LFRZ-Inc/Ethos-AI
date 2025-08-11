@@ -225,6 +225,37 @@ class Database:
             logger.error(f"Error getting conversation: {e}")
             return None
     
+    async def get_messages(self, conversation_id: str) -> List[Dict]:
+        """Get messages for a conversation in the format expected by the orchestrator"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                
+                cursor = await db.execute("""
+                    SELECT user_message, ai_response, model_used, timestamp, metadata
+                    FROM messages
+                    WHERE conversation_id = ?
+                    ORDER BY timestamp ASC
+                """, (conversation_id,))
+                
+                message_rows = await cursor.fetchall()
+                
+                messages = []
+                for row in message_rows:
+                    messages.append({
+                        "user": row["user_message"],
+                        "assistant": row["ai_response"],
+                        "model_used": row["model_used"],
+                        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(row["timestamp"])),
+                        "metadata": json.loads(row["metadata"]) if row["metadata"] else {}
+                    })
+                
+                return messages
+                
+        except Exception as e:
+            logger.error(f"Error getting messages: {e}")
+            return []
+    
     async def update_conversation_title(self, conversation_id: str, title: str) -> bool:
         """Update conversation title"""
         try:

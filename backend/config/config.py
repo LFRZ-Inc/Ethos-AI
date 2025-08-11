@@ -149,7 +149,7 @@ class Config:
                         "temperature": 0.7,
                         "max_tokens": 4096
                     },
-                    "enabled": True
+                    "enabled": False  # Disabled - too large for system
                 },
                 "claude-3.5": {
                     "name": "Claude 3.5 Sonnet",
@@ -178,13 +178,13 @@ class Config:
             },
             "orchestration": {
                 "routing": {
-                    "math_logic": ["llama3.1-70b", "llama3.2-3b"],
+                    "math_logic": ["llama3.2-3b"],
                     "coding": ["codellama-7b", "llama3.2-3b"],
-                    "general_chat": ["llama3.2-3b", "llama3.1-70b"],
+                    "general_chat": ["llama3.2-3b"],
                     "image_analysis": ["llava-7b"],
                     "image_generation": ["flux-1"]
                 },
-                "fallback_order": ["llama3.2-3b", "codellama-7b", "llama3.1-70b"],
+                "fallback_order": ["llama3.2-3b", "codellama-7b"],
                 "prefer_local": True,
                 "max_retries": 3
             },

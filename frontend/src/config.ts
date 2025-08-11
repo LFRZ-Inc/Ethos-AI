@@ -1,5 +1,22 @@
-// API Configuration
-export const API_BASE_URL = 'http://localhost:8003';
+// API Configuration - Detect the correct backend URL
+const getApiBaseUrl = () => {
+  // Check for Vercel environment variable first
+  if (process.env.VITE_API_BASE_URL) {
+    return process.env.VITE_API_BASE_URL;
+  }
+  
+  // If we're on the same machine, use localhost
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    return 'http://localhost:8003';
+  }
+  
+  // If accessed from phone/other device, use the PC's IP address
+  // Extract the IP from the current URL and use port 8003
+  const currentHost = window.location.hostname;
+  return `http://${currentHost}:8003`;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // API Endpoints
 export const API_ENDPOINTS = {
@@ -9,4 +26,11 @@ export const API_ENDPOINTS = {
   config: `${API_BASE_URL}/api/config`,
   upload: `${API_BASE_URL}/api/upload`,
   health: `${API_BASE_URL}/health`,
+  search: `${API_BASE_URL}/api/memory/search`,
+  analytics: `${API_BASE_URL}/api/memory/analytics`,
+  insights: `${API_BASE_URL}/api/conversations`,
+  tasks: `${API_BASE_URL}/api/tasks`,
+  documents: `${API_BASE_URL}/api/documents`,
+  knowledge: `${API_BASE_URL}/api/knowledge`,
+  citations: `${API_BASE_URL}/api/citations`,
 } as const; 

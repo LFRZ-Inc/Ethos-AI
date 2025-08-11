@@ -53,7 +53,7 @@ class OllamaModel(BaseModel):
         start_time = time.time()
         
         try:
-            # Format the prompt with context
+            # Format the prompt with context and Ethos identity
             formatted_prompt = self._format_prompt(prompt, context)
             
             # Prepare request payload
@@ -102,17 +102,12 @@ class OllamaModel(BaseModel):
         """Format prompt with context for Ollama"""
         formatted_prompt = ""
         
-        # Add system message based on model capabilities
-        if "coding" in self.capabilities:
-            formatted_prompt += "You are an expert programmer. Provide clear, well-documented code examples.\n\n"
-        elif "math" in self.capabilities or "logic" in self.capabilities:
-            formatted_prompt += "You are an expert mathematician and logician. Provide step-by-step solutions.\n\n"
-        else:
-            formatted_prompt += "You are a helpful AI assistant. Provide clear and accurate responses.\n\n"
+        # Add Ethos system message
+        formatted_prompt += self.get_ethos_system_message() + "\n\n"
         
         # Add conversation context
         if context:
-            formatted_prompt += self.format_context(context)
+            formatted_prompt += "CONVERSATION HISTORY:\n" + self.format_context(context) + "\n"
         
         # Add current prompt
         formatted_prompt += f"User: {prompt}\nAssistant: "

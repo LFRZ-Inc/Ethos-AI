@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Send, Upload, Settings, Bot, User } from 'lucide-react';
+import { Send, Upload, Settings, Bot, User, Search, Mic } from 'lucide-react';
 import { useChatStore, Message } from '../stores/appStore';
 import { useAppStore } from '../stores/appStore';
 import { useConversationStore } from '../stores/appStore';
@@ -8,17 +8,21 @@ import toast from 'react-hot-toast';
 import MessageComponent from './MessageComponent';
 import ModelSelector from './ModelSelector';
 import ToolPanel from './ToolPanel';
-import { API_ENDPOINTS } from '../config';
+import VoiceInput from './VoiceInput';
+import ThemeSwitcher from './ThemeSwitcher';
+import { API_ENDPOINTS, API_BASE_URL } from '../config';
 
 const ChatInterface: React.FC = () => {
   const { conversationId } = useParams();
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   const { messages, isLoading, addMessage, setLoading, setError } = useChatStore();
   const { currentConversationId, selectedModel, useTools, setCurrentConversation } = useAppStore();
   const { conversations, loadConversations, addConversation } = useConversationStore();
+  const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
 
   useEffect(() => {
     if (conversationId) {
@@ -27,6 +31,31 @@ const ChatInterface: React.FC = () => {
     } else {
       setCurrentConversation(null);
     }
+    
+    // Test network connectivity
+    const testConnectivity = async () => {
+      try {
+        console.log('Testing connectivity to backend...');
+        console.log('API Base URL:', API_BASE_URL);
+        console.log('Current location:', window.location.href);
+        
+        const healthResponse = await fetch(API_ENDPOINTS.health);
+        console.log('Health check status:', healthResponse.status);
+        
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+          console.log('Backend health:', healthData);
+          setNetworkStatus('connected');
+        } else {
+          setNetworkStatus('disconnected');
+        }
+      } catch (error) {
+        console.error('Connectivity test failed:', error);
+        setNetworkStatus('disconnected');
+      }
+    };
+    
+    testConnectivity();
   }, [conversationId]);
 
   useEffect(() => {
@@ -42,14 +71,32 @@ const ChatInterface: React.FC = () => {
       const response = await fetch(`${API_ENDPOINTS.conversations}/${id}`);
       if (response.ok) {
         const conversation = await response.json();
+        console.log('Loaded conversation:', conversation);
+        console.log('Messages:', conversation.messages);
         // Load messages into chat store
-        const chatMessages: Message[] = conversation.messages.map((msg: any) => ({
-          id: `${msg.timestamp}-${Math.random()}`,
-          role: msg.user ? 'user' : 'assistant',
-          content: msg.user || msg.assistant,
-          timestamp: msg.timestamp,
-          modelUsed: msg.model_used,
-        }));
+        const chatMessages: Message[] = [];
+        for (const msg of conversation.messages) {
+          // Add user message if it exists
+          if (msg.user) {
+            chatMessages.push({
+              id: `user-${msg.timestamp}-${Math.random()}`,
+              role: 'user',
+              content: msg.user,
+              timestamp: msg.timestamp,
+              modelUsed: msg.model_used,
+            });
+          }
+          // Add assistant message if it exists
+          if (msg.assistant) {
+            chatMessages.push({
+              id: `assistant-${msg.timestamp}-${Math.random()}`,
+              role: 'assistant',
+              content: msg.assistant,
+              timestamp: msg.timestamp,
+              modelUsed: msg.model_used,
+            });
+          }
+        }
         useChatStore.setState({ messages: chatMessages });
       } else {
         console.warn('Failed to load conversation:', response.status);
@@ -99,6 +146,14 @@ const ChatInterface: React.FC = () => {
       }
 
       // Send message to backend
+      console.log('Sending message to:', API_ENDPOINTS.chat);
+      console.log('Message payload:', {
+        content: input,
+        conversation_id: convId,
+        model_override: selectedModel || null,
+        use_tools: useTools,
+      });
+      
       const response = await fetch(API_ENDPOINTS.chat, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -110,8 +165,13 @@ const ChatInterface: React.FC = () => {
         }),
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error('Failed to send message');
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`Failed to send message: ${response.status} - ${errorText}`);
       }
 
       const result = await response.json();
@@ -145,6 +205,11 @@ const ChatInterface: React.FC = () => {
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleVoiceInput = (transcript: string) => {
+    setInput(transcript);
+    setShowVoiceInput(false);
   };
 
   const handleFileUpload = async (files: File[]) => {
@@ -190,15 +255,53 @@ const ChatInterface: React.FC = () => {
           </h1>
           <ModelSelector />
         </div>
-        <div className="flex items-center space-x-2">
-          <ToolPanel />
-          <button
-            onClick={() => window.location.href = '/settings'}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <Settings size={20} />
-          </button>
+        
+        {/* Global Search Bar */}
+        <div className="flex-1 max-w-md mx-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+            <input
+              type="text"
+              placeholder="Search all conversations..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-800 dark:text-white text-sm"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  const query = (e.target as HTMLInputElement).value;
+                  if (query.trim()) {
+                    window.open(`/search?q=${encodeURIComponent(query)}`, '_blank');
+                  }
+                }
+              }}
+            />
+          </div>
         </div>
+                  <div className="flex items-center space-x-2">
+            {/* Network Status Indicator */}
+            <div className={`px-2 py-1 rounded text-xs ${
+              networkStatus === 'connected' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+              networkStatus === 'disconnected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+            }`}>
+              {networkStatus === 'connected' ? '🟢 Connected' :
+               networkStatus === 'disconnected' ? '🔴 Disconnected' :
+               '🟡 Checking...'}
+            </div>
+            
+            <ToolPanel />
+            <ThemeSwitcher size="sm" />
+            <button
+              onClick={() => setShowVoiceInput(!showVoiceInput)}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <Mic size={20} />
+            </button>
+            <button
+              onClick={() => window.location.href = '/settings'}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            >
+              <Settings size={20} />
+            </button>
+          </div>
       </div>
 
       {/* Messages */}
@@ -208,7 +311,26 @@ const ChatInterface: React.FC = () => {
             <div className="text-center">
               <Bot size={48} className="mx-auto mb-4" />
               <p className="text-lg font-medium">Welcome to Ethos AI</p>
-              <p className="text-sm">Start a conversation by typing a message below</p>
+              <p className="text-sm mb-4">I'm Ethos, your personal AI assistant. I remember our conversations and I'm here to help with anything you need!</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">💻 Coding & Development</h3>
+                  <p className="text-sm text-blue-600 dark:text-blue-300">Write, debug, and review code in any language</p>
+                </div>
+                <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-green-800 dark:text-green-200 mb-2">📊 Analysis & Research</h3>
+                  <p className="text-sm text-green-600 dark:text-green-300">Analyze data, research topics, and solve problems</p>
+                </div>
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-purple-800 dark:text-purple-200 mb-2">🖼️ Image & Vision</h3>
+                  <p className="text-sm text-purple-600 dark:text-purple-300">Analyze images and generate visual content</p>
+                </div>
+                <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-lg">
+                  <h3 className="font-medium text-orange-800 dark:text-orange-200 mb-2">📝 Writing & Content</h3>
+                  <p className="text-sm text-orange-600 dark:text-orange-300">Create stories, articles, and creative content</p>
+                </div>
+              </div>
+              <p className="text-sm mt-4">Start a conversation by typing a message below</p>
             </div>
           </div>
         )}
@@ -224,12 +346,39 @@ const ChatInterface: React.FC = () => {
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
               <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
             </div>
-            <span className="text-sm">AI is thinking...</span>
+            <span className="text-sm">Ethos is thinking...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Voice Input Overlay */}
+      {showVoiceInput && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                Voice Input
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Speak your message to Ethos
+              </p>
+            </div>
+            <VoiceInput
+              onTranscript={handleVoiceInput}
+              onError={(error) => toast.error(`Voice input error: ${error}`)}
+              placeholder="Speak your message..."
+            />
+            <button
+              onClick={() => setShowVoiceInput(false)}
+              className="mt-4 w-full px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Input */}
       <div className="border-t border-gray-200 dark:border-gray-700 p-4">

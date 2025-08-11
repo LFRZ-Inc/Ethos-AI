@@ -60,9 +60,9 @@ const MessageComponent: React.FC<MessageComponentProps> = ({ message }) => {
           
           <div className={`mt-2 text-xs text-gray-500 ${isUser ? 'text-right' : 'text-left'}`}>
             {new Date(message.timestamp).toLocaleTimeString()}
-            {message.modelUsed && !isUser && (
-              <span className="ml-2 px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">
-                {message.modelUsed}
+            {!isUser && (
+              <span className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded text-xs">
+                Ethos AI
               </span>
             )}
           </div>
