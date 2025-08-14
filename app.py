@@ -12,6 +12,15 @@ OLLAMA_HOST = os.environ.get('OLLAMA_HOST', 'localhost')
 OLLAMA_PORT = os.environ.get('OLLAMA_PORT', '11434')
 ETHOS_API_URL = f"http://{OLLAMA_HOST}:{OLLAMA_PORT}"
 
+@app.route('/')
+def home():
+    """Home endpoint"""
+    return jsonify({
+        'message': 'Ethos AI API for Cooking With!',
+        'status': 'running',
+        'version': '1.0.0'
+    })
+
 @app.route('/health')
 def health_check():
     """Health check endpoint"""
@@ -42,6 +51,9 @@ def chat():
     """Main chat endpoint for Ethos AI"""
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
         content = data.get('content', '')
         model_override = data.get('model_override', 'llama3.2-3b')
         use_tools = data.get('use_tools', False)
@@ -103,6 +115,9 @@ def pull_model():
     """Pull a model from Ollama"""
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data provided'}), 400
+            
         model_name = data.get('model')
         
         if not model_name:
