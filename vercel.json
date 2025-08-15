@@ -6,7 +6,7 @@
       "use": "@vercel/static-build",
       "config": {
         "distDir": "frontend/dist",
-        "buildCommand": "cd frontend && npm run build"
+        "buildCommand": "cd frontend && npm install && npm run build"
       }
     },
     {
@@ -42,5 +42,16 @@
     "env": {
       "NODE_ENV": "production"
     }
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    }
+  ]
 } 
