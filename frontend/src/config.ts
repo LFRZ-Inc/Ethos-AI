@@ -1,5 +1,6 @@
 // API Configuration - Detect the correct backend URL
 // Updated for Vercel deployment with TypeScript fixes
+// Force Vercel to use latest commit with TypeScript fixes
 const getApiBaseUrl = () => {
   // Check for Vite environment variable first
   if (import.meta.env.VITE_API_BASE_URL) {
