@@ -24,20 +24,6 @@
       "dest": "/frontend/$1"
     }
   ],
-  "functions": {
-    "api/chat.py": {
-      "maxDuration": 30
-    },
-    "api/conversations.py": {
-      "maxDuration": 30
-    },
-    "api/models.py": {
-      "maxDuration": 30
-    },
-    "api/health.py": {
-      "maxDuration": 30
-    }
-  },
   "build": {
     "env": {
       "NODE_ENV": "production"
