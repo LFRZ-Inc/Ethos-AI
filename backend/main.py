@@ -195,6 +195,29 @@ def analyze_message_intent(message: str) -> str:
 
 def generate_local_response(message: str, model_id: str) -> str:
     """Generate a contextual response using local knowledge"""
+    message_lower = message.lower()
+    
+    # Handle specific questions about capabilities
+    if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "help me", "capabilities", "features"]):
+        return """I'm Ethos AI, your privacy-focused local assistant! Here's what I can help you with:
+
+🍳 **Cooking & Recipes**: Help with recipes, cooking tips, meal planning, and kitchen advice
+💻 **Programming & Coding**: Assist with code, debugging, software development, and programming concepts  
+🏃‍♂️ **Health & Wellness**: Provide general fitness, nutrition, and wellness information
+📚 **Learning & Education**: Help with studying, explaining concepts, and educational topics
+🤖 **General Assistance**: Answer questions, provide information, and help with various tasks
+
+I operate completely locally without any external tracking or big tech dependencies. Your conversations are private and secure. What would you like help with today?"""
+
+    # Handle greetings
+    elif any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
+        return "Hello! I'm Ethos AI, your local privacy-focused assistant. I'm here to help you with cooking, coding, health, learning, and more - all while keeping your data completely private. What can I help you with today?"
+
+    # Handle "how are you" type questions
+    elif any(phrase in message_lower for phrase in ["how are you", "how do you feel", "are you ok"]):
+        return "I'm functioning perfectly! As a local AI assistant, I'm designed to help you while maintaining complete privacy. I don't have feelings like humans do, but I'm ready and eager to assist you with whatever you need. What would you like to work on?"
+
+    # Analyze intent for other messages
     intent = analyze_message_intent(message)
     
     # Get relevant knowledge base
@@ -202,34 +225,31 @@ def generate_local_response(message: str, model_id: str) -> str:
     
     # Create a contextual response
     if intent == "cooking":
-        response = f"I'm your Ethos Cooking Assistant! 🍳 {random.choice(knowledge_base)} "
-        if "recipe" in message.lower():
-            response += "Would you like me to help you find or create a recipe?"
-        elif "tip" in message.lower():
-            response += "Here's a cooking tip: " + random.choice(knowledge_base)
+        if "recipe" in message_lower:
+            return f"I'd love to help you with recipes! 🍳 {random.choice(knowledge_base)} What type of dish are you looking to make? I can help with ingredients, techniques, and cooking methods."
+        elif "tip" in message_lower or "advice" in message_lower:
+            return f"Here's a great cooking tip: {random.choice(knowledge_base)} What specific cooking challenge are you facing?"
         else:
-            response += "How can I help you in the kitchen today?"
+            return f"I'm your Ethos Cooking Assistant! 🍳 {random.choice(knowledge_base)} I can help with recipes, meal planning, cooking techniques, and kitchen tips. What would you like to cook today?"
     
     elif intent == "coding":
-        response = f"I'm your Ethos Code Assistant! 💻 {random.choice(knowledge_base)} "
-        if "help" in message.lower() or "problem" in message.lower():
-            response += "I can help you debug, explain concepts, or suggest best practices."
+        if any(word in message_lower for word in ["help", "problem", "error", "bug", "debug"]):
+            return f"I'm your Ethos Code Assistant! 💻 {random.choice(knowledge_base)} I can help you debug issues, explain programming concepts, suggest best practices, and review code. What's the programming challenge you're facing?"
         else:
-            response += "What programming challenge can I help you with?"
+            return f"I'm your Ethos Code Assistant! 💻 {random.choice(knowledge_base)} I can help with programming, debugging, code review, and software development. What programming topic would you like to explore?"
     
     elif intent == "health":
-        response = f"I'm your Ethos Health Assistant! 🏃‍♂️ {random.choice(knowledge_base)} "
-        response += "Remember, I provide general wellness information - always consult healthcare professionals for medical advice."
+        return f"I'm your Ethos Health Assistant! 🏃‍♂️ {random.choice(knowledge_base)} I can provide general wellness information, fitness tips, and nutrition advice. Remember, I provide general information - always consult healthcare professionals for medical advice. What health topic interests you?"
     
     elif intent == "learning":
-        response = f"I'm your Ethos Learning Assistant! 📚 {random.choice(knowledge_base)} "
-        response += "What would you like to learn about today?"
+        return f"I'm your Ethos Learning Assistant! 📚 {random.choice(knowledge_base)} I can help explain concepts, break down complex topics, and assist with your learning journey. What would you like to learn about today?"
     
     else:
-        response = f"I'm Ethos AI! 🤖 {random.choice(knowledge_base)} "
-        response += "I'm here to help you with whatever you need, completely privately and independently."
-    
-    return response
+        # For general questions, try to provide a helpful response
+        if "?" in message:
+            return f"I'm Ethos AI! 🤖 I'd be happy to help you with that question. {random.choice(knowledge_base)} Could you provide more details about what you're looking for? I can assist with cooking, coding, health, learning, and many other topics."
+        else:
+            return f"I'm Ethos AI! 🤖 {random.choice(knowledge_base)} I'm here to help you with cooking, coding, health, learning, and more - all while keeping your conversations completely private. What would you like to work on?"
 
 # Global error handler
 @app.exception_handler(Exception)
