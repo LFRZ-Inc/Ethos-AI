@@ -348,6 +348,8 @@ async def get_model_system_status():
 @app.post("/api/models/{model_id}/initialize")
 async def initialize_model_endpoint(model_id: str):
     """Initialize a specific model"""
+    global model_system_loading, model_system_initialized
+    
     try:
         if not MODEL_SYSTEM_AVAILABLE:
             raise HTTPException(status_code=400, detail="Model system dependencies not available")
@@ -359,13 +361,11 @@ async def initialize_model_endpoint(model_id: str):
             return {"message": "Model system is already loading", "status": "loading"}
         
         # Start initialization
-        global model_system_loading
         model_system_loading = True
         
         try:
             success = initialize_model(model_id)
             model_system_loading = False
-            global model_system_initialized
             model_system_initialized = success
             
             if success:
@@ -385,6 +385,8 @@ async def initialize_model_endpoint(model_id: str):
 @app.post("/api/models/{model_id}/unload")
 async def unload_model_endpoint(model_id: str):
     """Unload a specific model to free memory"""
+    global model_system_initialized, model_system_loading
+    
     try:
         if not MODEL_SYSTEM_AVAILABLE:
             raise HTTPException(status_code=400, detail="Model system dependencies not available")
@@ -393,7 +395,6 @@ async def unload_model_endpoint(model_id: str):
             raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
         
         unload_model(model_id)
-        global model_system_initialized, model_system_loading
         model_system_initialized = False
         model_system_loading = False
         
