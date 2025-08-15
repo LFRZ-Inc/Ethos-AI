@@ -50,14 +50,17 @@ app.add_middleware(
         "*",  # Allow all origins for now
         "https://ethos-ai-phi.vercel.app",
         "https://ethos-ai-phi.vercel.app/",
+        "https://*.vercel.app",
+        "https://*.railway.app",
         "http://localhost:3000",
         "http://localhost:1420",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:1420"
     ],
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Global model system status
