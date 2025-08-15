@@ -416,11 +416,11 @@ async def create_conversation():
 async def download_model(model_id: str):
     """Download a model to the Railway server"""
     try:
-        # Model download URLs
+        # Model download URLs - using publicly accessible models
         model_urls = {
-            "ethos-3b": "https://huggingface.co/TheBloke/Llama-2-3B-Chat-GGUF/resolve/main/llama-2-3b-chat.Q4_K_M.gguf",
-            "ethos-7b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf",
-            "ethos-70b": "https://huggingface.co/TheBloke/Llama-2-70B-Chat-GGUF/resolve/main/llama-2-70b-chat.Q4_K_M.gguf"
+            "ethos-3b": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+            "ethos-7b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin",
+            "ethos-70b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin"
         }
         
         if model_id not in model_urls:
@@ -431,9 +431,18 @@ async def download_model(model_id: str):
         
         logger.info(f"Starting download of {model_id} from {url}")
         
-        # Download the model file
+        # Download the model file with proper headers
         import requests
-        response = requests.get(url, stream=True)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        
+        # Try with HuggingFace token if available
+        hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+        
+        response = requests.get(url, headers=headers, stream=True)
         response.raise_for_status()
         
         with open(model_path, 'wb') as f:
