@@ -75,7 +75,7 @@ const GestureControls: React.FC<GestureControlsProps> = ({
           }
         }, 500);
         
-        setLongPressTimer(timer as unknown as number);
+        setLongPressTimer(timer as any);
       }
       
       // Handle multi-touch gestures
@@ -113,7 +113,7 @@ const GestureControls: React.FC<GestureControlsProps> = ({
       
       // Clear long press timer
       if (longPressTimer) {
-        clearTimeout(longPressTimer);
+        clearTimeout(longPressTimer as any);
         setLongPressTimer(null);
       }
       

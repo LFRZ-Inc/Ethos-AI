@@ -1,0 +1,10 @@
+[33mbf70504[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m Add Render deployment as reliable alternative to Railway and Vercel
+[33mc3e84a6[m Fix Railway deployment - Simplified requirements and Railway-specific startup script
+[33mb16b435[m Trigger new Vercel deployment with latest TypeScript fixes
+[33md8d4245[m Fix TypeScript build errors for Vercel - Add @types/node and fix NodeJS.Timeout type
+[33m35ef499[m Add comprehensive environment variables guide for Vercel deployment
+[33ma8aa88f[m Add Vercel serverless functions - Complete deployment solution without external backend
+[33me8fb996[m Fix TypeScript errors for Vercel deployment - Updated tsconfig and fixed import issues
+[33m77610d3[m Deploy to Vercel - Optimized for cloud hosting with backend integration
+[33md175923[m Fix ModelResponse class and API endpoints - AI should work now
+[33mb3379d4[m Fix API endpoints and ModelResponse - AI should now work
