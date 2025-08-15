@@ -7,6 +7,8 @@ import os
 import logging
 import time
 import json
+import uuid
+from datetime import datetime
 from typing import Optional, Dict, Any, List
 
 from fastapi import FastAPI, HTTPException
@@ -25,7 +27,56 @@ except ImportError as e:
     logging.warning(f"Local model system not available: {e}")
     MODEL_SYSTEM_AVAILABLE = False
     logger = logging.getLogger(__name__)
-    logger.info("Using fallback AI system - local models not available")
+    logger.info("Using Ollama API system - local models not available")
+
+# Ollama API integration
+import requests
+import json
+
+OLLAMA_BASE_URL = "http://localhost:11434"  # Default Ollama URL
+OLLAMA_AVAILABLE = False
+
+def check_ollama_availability():
+    """Check if Ollama is running and available"""
+    global OLLAMA_AVAILABLE
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+        if response.status_code == 200:
+            OLLAMA_AVAILABLE = True
+            logger.info("Ollama API is available")
+            return True
+    except Exception as e:
+        logger.warning(f"Ollama not available: {e}")
+        OLLAMA_AVAILABLE = False
+    return False
+
+def get_ollama_response(message: str, model_name: str = "llama3.2:3b") -> str:
+    """Get response from Ollama API"""
+    if not OLLAMA_AVAILABLE:
+        return "Ollama is not available. Please start Ollama server."
+    
+    try:
+        payload = {
+            "model": model_name,
+            "prompt": message,
+            "stream": False
+        }
+        
+        response = requests.post(f"{OLLAMA_BASE_URL}/api/generate", 
+                               json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("response", "No response from Ollama")
+        else:
+            return f"Error: Ollama API returned status {response.status_code}"
+            
+    except Exception as e:
+        logger.error(f"Error calling Ollama API: {e}")
+        return f"Error: Failed to get response from Ollama - {str(e)}"
+
+# Check Ollama availability on startup
+check_ollama_availability()
 
 # Setup logging
 logging.basicConfig(
@@ -154,52 +205,23 @@ LOCAL_MODELS = {
 }
 
 def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
-    """Get response from local AI models"""
-    global model_system_initialized, model_system_loading
-    
-    # Check if local model system is available
-    if not MODEL_SYSTEM_AVAILABLE:
-        return get_fallback_response(message, model_id)
-    
-    # Map our model names to actual model IDs
+    """Get response from Ollama models"""
+    # Map our model names to actual Ollama model names
     model_mapping = {
-        "ethos-light": "ethos-3b",      # 3B model for fast responses
-        "ethos-code": "ethos-7b",       # 7B model for coding
-        "ethos-pro": "ethos-70b",       # 70B model for complex tasks
-        "ethos-creative": "ethos-7b"    # 7B model for creative tasks
+        "ethos-light": "llama3.2:3b",      # 3B model for fast responses
+        "ethos-code": "llava:7b",          # 7B model for coding (using llava since you have it)
+        "ethos-pro": "llama3.1:70b",       # 70B model for complex tasks
+        "ethos-creative": "llava:7b"       # 7B model for creative tasks
     }
     
-    actual_model_id = model_mapping.get(model_id, "ethos-3b")
+    actual_model_name = model_mapping.get(model_id, "llama3.2:3b")
     
-    # Try to load model if not already loaded
-    if not model_system_initialized and not model_system_loading:
-        model_system_loading = True
-        logger.info(f"Initializing local model system with {actual_model_id}...")
-        try:
-            model_system_initialized = initialize_model(actual_model_id)
-            model_system_loading = False
-            if model_system_initialized:
-                logger.info(f"Local model {actual_model_id} initialized successfully!")
-            else:
-                logger.warning(f"Failed to initialize local model {actual_model_id}")
-        except Exception as e:
-            logger.error(f"Error initializing local model {actual_model_id}: {e}")
-            model_system_loading = False
-            model_system_initialized = False
-    
-    # Generate response using the local model system
-    if model_system_initialized:
-        try:
-            response = generate_response(message, actual_model_id)
-            logger.info(f"Generated response using local model {actual_model_id}")
-            return response
-        except Exception as e:
-            logger.error(f"Error generating response with local model {actual_model_id}: {e}")
-            return f"Error: Local model {actual_model_id} failed to generate response: {str(e)}"
-    elif model_system_loading:
-        return f"Loading local model {actual_model_id} to provide intelligent responses. Please try again in a few seconds."
+    # Use Ollama API
+    if OLLAMA_AVAILABLE:
+        return get_ollama_response(message, actual_model_name)
     else:
-        return f"Error: Local model {actual_model_id} is not available. Please try a different model or check system status."
+        # Fallback if Ollama is not available
+        return f"Ollama is not available. Please start Ollama server to use {actual_model_name}."
 
 def get_fallback_response(message: str, model_id: str) -> str:
     """Fallback response when local models are unavailable"""
@@ -304,23 +326,101 @@ async def test_endpoint():
 @app.get("/api/models")
 async def get_models():
     """Get available models"""
-    try:
-        response_data = {
-            "models": list(LOCAL_MODELS.values()),
-            "total": len(LOCAL_MODELS),
-            "status": "available"
+    # Check Ollama availability and get model list
+    ollama_models = []
+    if OLLAMA_AVAILABLE:
+        try:
+            response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=5)
+            if response.status_code == 200:
+                ollama_data = response.json()
+                ollama_models = [model["name"] for model in ollama_data.get("models", [])]
+        except Exception as e:
+            logger.error(f"Error getting Ollama models: {e}")
+    
+    # Define our model mapping
+    model_mapping = {
+        "ethos-light": "llama3.2:3b",
+        "ethos-code": "llava:7b", 
+        "ethos-pro": "llama3.1:70b",
+        "ethos-creative": "llava:7b"
+    }
+    
+    models = [
+        {
+            "id": "ethos-light",
+            "name": "Ethos Light",
+            "type": "local",
+            "provider": "ollama",
+            "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
+            "enabled": True,
+            "status": "available" if "llama3.2:3b" in ollama_models else "unavailable",
+            "description": "Lightweight AI for quick responses and basic tasks",
+            "parameters": "3B",
+            "quantization": "4-bit",
+            "speed": "fast",
+            "capability": "basic",
+            "ollama_model": "llama3.2:3b"
+        },
+        {
+            "id": "ethos-code",
+            "name": "Ethos Code", 
+            "type": "local",
+            "provider": "ollama",
+            "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
+            "enabled": True,
+            "status": "available" if "llava:7b" in ollama_models else "unavailable",
+            "description": "Specialized AI for coding and development tasks",
+            "parameters": "7B",
+            "quantization": "4-bit", 
+            "speed": "medium",
+            "capability": "coding",
+            "ollama_model": "llava:7b"
+        },
+        {
+            "id": "ethos-pro",
+            "name": "Ethos Pro",
+            "type": "local", 
+            "provider": "ollama",
+            "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
+            "enabled": True,
+            "status": "available" if "llama3.1:70b" in ollama_models else "unavailable",
+            "description": "Professional AI for complex analysis and detailed work",
+            "parameters": "70B",
+            "quantization": "4-bit",
+            "speed": "slow", 
+            "capability": "advanced",
+            "ollama_model": "llama3.1:70b"
+        },
+        {
+            "id": "ethos-creative",
+            "name": "Ethos Creative",
+            "type": "local",
+            "provider": "ollama", 
+            "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
+            "enabled": True,
+            "status": "available" if "llava:7b" in ollama_models else "unavailable",
+            "description": "Creative AI for writing, content creation, and artistic tasks",
+            "parameters": "7B",
+            "quantization": "4-bit",
+            "speed": "medium",
+            "capability": "creative", 
+            "ollama_model": "llava:7b"
         }
-        
-        from fastapi.responses import JSONResponse
-        response = JSONResponse(content=response_data)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error getting models: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    ]
+    
+    response_data = {
+        "models": models,
+        "total": len(models),
+        "status": "available" if OLLAMA_AVAILABLE else "unavailable",
+        "ollama_status": "connected" if OLLAMA_AVAILABLE else "disconnected"
+    }
+    
+    from fastapi.responses import JSONResponse
+    response = JSONResponse(content=response_data)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 @app.get("/api/models/status")
 async def get_model_status():
@@ -359,46 +459,16 @@ async def chat(message: ChatMessage):
         logger.error(f"Error in chat endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/conversations")
-async def get_conversations():
-    """Get all conversations"""
-    try:
-        response_data = {
-            "conversations": list(conversations.values()),
-            "total": len(conversations)
-        }
-        
-        from fastapi.responses import JSONResponse
-        response = JSONResponse(content=response_data)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
-        
-    except Exception as e:
-        logger.error(f"Error getting conversations: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/api/conversations")
 async def create_conversation():
     """Create a new conversation"""
     try:
-        global conversation_counter
-        conversation_counter += 1
-        conv_id = f"conv_{conversation_counter}"
-        
-        conversations[conv_id] = {
-            "id": conv_id,
-            "title": "New Conversation",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "message_count": 0
-        }
-        
+        conversation_id = str(uuid.uuid4())
         response_data = {
-            "conversation_id": conv_id,
-            "title": "New Conversation",
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            "id": conversation_id,
+            "title": f"New Conversation {conversation_id[:8]}",
+            "created_at": datetime.now().isoformat(),
+            "messages": []
         }
         
         from fastapi.responses import JSONResponse
@@ -412,51 +482,16 @@ async def create_conversation():
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/models/{model_id}/download")
-async def download_model(model_id: str):
-    """Download a model to the Railway server"""
+@app.get("/api/conversations")
+async def get_conversations():
+    """Get all conversations"""
     try:
-        # Model download URLs - using publicly accessible models
-        model_urls = {
-            "ethos-3b": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
-            "ethos-7b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin",
-            "ethos-70b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin"
-        }
-        
-        if model_id not in model_urls:
-            raise HTTPException(status_code=400, detail=f"Model {model_id} not found")
-        
-        url = model_urls[model_id]
-        model_path = f"/tmp/{model_id}.gguf"
-        
-        logger.info(f"Starting download of {model_id} from {url}")
-        
-        # Download the model file with proper headers
-        import requests
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
-        
-        # Try with HuggingFace token if available
-        hf_token = os.environ.get("HUGGINGFACE_TOKEN")
-        if hf_token:
-            headers["Authorization"] = f"Bearer {hf_token}"
-        
-        response = requests.get(url, headers=headers, stream=True)
-        response.raise_for_status()
-        
-        with open(model_path, 'wb') as f:
-            for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        
-        logger.info(f"Successfully downloaded {model_id} to {model_path}")
+        # For now, return empty list - you can implement actual storage later
+        conversations = []
         
         response_data = {
-            "status": "success",
-            "message": f"Model {model_id} downloaded successfully",
-            "model_id": model_id,
-            "file_path": model_path,
-            "file_size": os.path.getsize(model_path)
+            "conversations": conversations,
+            "total": len(conversations)
         }
         
         from fastapi.responses import JSONResponse
@@ -467,17 +502,7 @@ async def download_model(model_id: str):
         return response
         
     except Exception as e:
-        logger.error(f"Error downloading model {model_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/download-model")
-async def download_model_endpoint():
-    """Legacy endpoint for model downloads"""
-    try:
-        # This endpoint accepts POST with model and url in body
-        return {"message": "Use /api/models/{model_id}/download instead"}
-    except Exception as e:
-        logger.error(f"Error in download endpoint: {e}")
+        logger.error(f"Error getting conversations: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Global error handler
