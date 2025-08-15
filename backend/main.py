@@ -209,6 +209,29 @@ def get_ethos_code_response(message: str, message_lower: str) -> str:
 
 def get_ethos_pro_response(message: str, message_lower: str) -> str:
     """Ethos Pro (70B) - Advanced analysis and detailed responses"""
+    # Handle questions about the president
+    if "president" in message_lower:
+        return """As Ethos Pro, I can provide you with a comprehensive analysis of the current presidency:
+
+**Current President (2024):** Joe Biden
+- **Inauguration:** January 20, 2021
+- **Party:** Democratic
+- **Term:** First term (2021-2025)
+- **Vice President:** Kamala Harris
+
+**Key Context:**
+- Biden became the 46th President of the United States
+- He succeeded Donald Trump (Republican, 2017-2021)
+- At 78, he was the oldest person to assume the presidency
+- His administration focuses on infrastructure, climate change, and economic recovery
+
+**Historical Significance:**
+- First president to have a female vice president (Kamala Harris)
+- Took office during the COVID-19 pandemic
+- Faced significant challenges including economic recovery and political polarization
+
+This analysis demonstrates Ethos Pro's capability for detailed, comprehensive responses with multiple perspectives and contextual information."""
+    
     # Handle complex questions
     if "?" in message:
         return f"As Ethos Pro, I'm designed for advanced analysis and detailed responses. Your question about '{message}' deserves a comprehensive answer. I can provide deep analysis, research insights, detailed explanations, and complex reasoning. Let me give you a thorough response..."
