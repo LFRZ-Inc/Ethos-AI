@@ -237,11 +237,11 @@ async def root():
 async def health():
     """Health check endpoint for Railway"""
     try:
-        return {
-            "status": "healthy", 
-            "service": "ethos-ai-backend",
+    return {
+        "status": "healthy", 
+        "service": "ethos-ai-backend",
             "privacy": "local-first, no external dependencies",
-            "timestamp": time.time(),
+        "timestamp": time.time(),
             "environment": os.environ.get("RAILWAY_ENVIRONMENT", "production"),
             "port": os.environ.get("PORT", "8000")
         }
