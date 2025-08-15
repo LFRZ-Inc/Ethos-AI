@@ -36,7 +36,15 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",  # Allow all origins for now
+        "https://ethos-ai-phi.vercel.app",
+        "https://ethos-ai-phi.vercel.app/",
+        "http://localhost:3000",
+        "http://localhost:1420",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:1420"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,10 +52,20 @@ app.add_middleware(
 
 # Pydantic models
 class ChatMessage(BaseModel):
-    content: str
+    content: Optional[str] = None
+    message: Optional[str] = None
     conversation_id: Optional[str] = None
     model_override: Optional[str] = None
     use_tools: bool = True
+    
+    def get_content(self) -> str:
+        """Get the message content from either content or message field"""
+        if self.content:
+            return self.content
+        elif self.message:
+            return self.message
+        else:
+            raise ValueError("Either 'content' or 'message' field is required")
 
 class ChatResponse(BaseModel):
     content: str
@@ -237,11 +255,11 @@ async def root():
 async def health():
     """Health check endpoint for Railway"""
     try:
-    return {
-        "status": "healthy", 
-        "service": "ethos-ai-backend",
+        return {
+            "status": "healthy", 
+            "service": "ethos-ai-backend",
             "privacy": "local-first, no external dependencies",
-        "timestamp": time.time(),
+            "timestamp": time.time(),
             "environment": os.environ.get("RAILWAY_ENVIRONMENT", "production"),
             "port": os.environ.get("PORT", "8000")
         }
@@ -268,7 +286,7 @@ async def chat(message: ChatMessage):
             )
         
         # Generate local AI response
-        ai_response = generate_local_response(message.content, model_id)
+        ai_response = generate_local_response(message.get_content(), model_id)
         
         # Create conversation if needed
         conv_id = message.conversation_id
@@ -278,7 +296,7 @@ async def chat(message: ChatMessage):
             conv_id = f"conv_{conversation_counter}"
             conversations[conv_id] = {
                 "id": conv_id,
-                "title": message.content[:50] + "..." if len(message.content) > 50 else message.content,
+                "title": message.get_content()[:50] + "..." if len(message.get_content()) > 50 else message.get_content(),
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "message_count": 0
@@ -289,7 +307,7 @@ async def chat(message: ChatMessage):
             messages[conv_id] = []
         
         messages[conv_id].append({
-            "user": message.content,
+            "user": message.get_content(),
             "assistant": ai_response,
             "model_used": model_id,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
