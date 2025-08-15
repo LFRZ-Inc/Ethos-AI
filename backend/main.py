@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Ethos AI - Railway Optimized FastAPI Application
-Local-first, privacy-focused AI interface - No external dependencies
+Production AI system with multiple models and intelligent routing
 """
 
 import asyncio
@@ -19,13 +19,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-# Import 70B model integration
+# Import production AI model system
 try:
-    from models import initialize_70b_model, generate_70b_response, get_70b_model_info, unload_70b_model
-    MODEL_70B_AVAILABLE = True
+    from models import initialize_model, generate_response, get_model_info, get_system_status, unload_model
+    MODEL_SYSTEM_AVAILABLE = True
 except ImportError as e:
-    logging.warning(f"70B model not available: {e}")
-    MODEL_70B_AVAILABLE = False
+    logging.warning(f"Model system not available: {e}")
+    MODEL_SYSTEM_AVAILABLE = False
 
 # Setup logging
 logging.basicConfig(
@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 # Create FastAPI app
 app = FastAPI(
     title="Ethos AI",
-    description="Local-first, privacy-focused AI interface",
-    version="1.0.0"
+    description="Production AI system with multiple models and intelligent routing",
+    version="2.0.0"
 )
 
 # Add CORS middleware
@@ -58,9 +58,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global 70B model status
-model_70b_initialized = False
-model_70b_loading = False
+# Global model system status
+model_system_initialized = False
+model_system_loading = False
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -98,217 +98,100 @@ conversations = {}
 messages = {}
 conversation_counter = 0
 
-# Local AI Knowledge Base
-LOCAL_KNOWLEDGE = {
-    "general": [
-        "I'm Ethos AI, a local-first, privacy-focused AI assistant.",
-        "I operate completely independently without any external dependencies.",
-        "Your conversations are private and not tracked by any big tech companies.",
-        "I'm designed to help you with various tasks while respecting your privacy."
-    ],
-    "cooking": [
-        "I can help you with cooking tips and recipes.",
-        "For pasta dishes, always salt your water generously.",
-        "Fresh herbs can transform a simple dish into something special.",
-        "Let meat rest after cooking to retain its juices.",
-        "Taste as you cook to adjust seasoning properly."
-    ],
-    "coding": [
-        "I can help you with programming and development questions.",
-        "Always write clean, readable code with good documentation.",
-        "Test your code thoroughly before deploying.",
-        "Use version control to track your changes.",
-        "Follow best practices for your chosen programming language."
-    ],
-    "health": [
-        "I can provide general wellness information.",
-        "Regular exercise and a balanced diet are important for health.",
-        "Getting enough sleep is crucial for overall well-being.",
-        "Stay hydrated throughout the day.",
-        "Consider consulting healthcare professionals for medical advice."
-    ],
-    "learning": [
-        "I can help you with learning and educational topics.",
-        "Break complex topics into smaller, manageable parts.",
-        "Practice regularly to reinforce new skills.",
-        "Use different learning methods to find what works best for you.",
-        "Don't be afraid to ask questions and seek clarification."
-    ]
-}
-
-# Local AI Models - Privacy-focused
+# Production AI Models - Multi-model system
 LOCAL_MODELS = {
     "ethos-70b": {
         "id": "ethos-70b",
         "name": "Ethos 70B AI",
         "type": "local",
         "provider": "ethos",
-        "capabilities": ["general_chat", "reasoning", "privacy_focused", "advanced_ai"],
+        "capabilities": ["general_chat", "reasoning", "privacy_focused", "advanced_ai", "complex_tasks"],
         "enabled": True,
-        "status": "available" if MODEL_70B_AVAILABLE else "unavailable",
-        "description": "70B parameter local AI for advanced conversations",
+        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "description": "70B parameter model for complex reasoning and advanced tasks",
         "parameters": "70B",
-        "quantization": "4-bit"
+        "quantization": "4-bit",
+        "speed": "slow",
+        "capability": "high"
     },
-    "ethos-general": {
-        "id": "ethos-general",
-        "name": "Ethos General AI",
+    "ethos-7b": {
+        "id": "ethos-7b",
+        "name": "Ethos 7B AI",
         "type": "local",
         "provider": "ethos",
-        "capabilities": ["general_chat", "reasoning", "privacy_focused"],
+        "capabilities": ["general_chat", "reasoning", "privacy_focused", "coding", "analysis"],
         "enabled": True,
-        "status": "available",
-        "description": "Local-first AI for general conversations"
+        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "description": "7B parameter model for balanced performance and speed",
+        "parameters": "7B",
+        "quantization": "none",
+        "speed": "medium",
+        "capability": "medium"
     },
-    "ethos-cooking": {
-        "id": "ethos-cooking",
-        "name": "Ethos Cooking Assistant",
+    "ethos-3b": {
+        "id": "ethos-3b",
+        "name": "Ethos 3B AI",
         "type": "local",
         "provider": "ethos",
-        "capabilities": ["cooking", "recipes", "kitchen_tips"],
+        "capabilities": ["general_chat", "privacy_focused", "simple_tasks", "fast_responses"],
         "enabled": True,
-        "status": "available",
-        "description": "Specialized cooking and recipe assistant"
-    },
-    "ethos-coding": {
-        "id": "ethos-coding",
-        "name": "Ethos Code Assistant",
-        "type": "local",
-        "provider": "ethos",
-        "capabilities": ["coding", "programming", "debugging"],
-        "enabled": True,
-        "status": "available",
-        "description": "Programming and development assistant"
-    },
-    "ethos-health": {
-        "id": "ethos-health",
-        "name": "Ethos Health Assistant",
-        "type": "local",
-        "provider": "ethos",
-        "capabilities": ["health", "wellness", "fitness"],
-        "enabled": True,
-        "status": "available",
-        "description": "Health and wellness assistant"
+        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "description": "3B parameter model for fast responses to simple tasks",
+        "parameters": "3B",
+        "quantization": "none",
+        "speed": "fast",
+        "capability": "basic"
     }
 }
 
-# Local AI Processing Functions
-def analyze_message_intent(message: str) -> str:
-    """Analyze message to determine intent and appropriate response category"""
-    message_lower = message.lower()
+# Production AI Response Generation
+def generate_ai_response(message: str, model_id: str) -> str:
+    """Generate AI response using production model system"""
+    global model_system_initialized, model_system_loading
     
-    # Cooking-related keywords
-    if any(word in message_lower for word in ["cook", "recipe", "food", "kitchen", "meal", "ingredient", "chef"]):
-        return "cooking"
+    # Check if model system is available
+    if not MODEL_SYSTEM_AVAILABLE:
+        return "Error: AI model system is not available. Please check system configuration."
     
-    # Coding-related keywords
-    elif any(word in message_lower for word in ["code", "program", "debug", "software", "development", "algorithm", "function"]):
-        return "coding"
+    # If no specific model requested, use auto-selection
+    if not model_id or model_id == "":
+        # Auto-select based on message complexity
+        if any(word in message.lower() for word in ["complex", "analyze", "explain", "reason", "compare", "evaluate"]):
+            model_id = "ethos-70b"  # Complex tasks
+        elif any(word in message.lower() for word in ["code", "program", "debug", "algorithm", "function"]):
+            model_id = "ethos-7b"   # Coding tasks
+        else:
+            model_id = "ethos-3b"   # Simple tasks
     
-    # Health-related keywords
-    elif any(word in message_lower for word in ["health", "fitness", "exercise", "diet", "wellness", "medical", "doctor"]):
-        return "health"
+    # Try to load model if not already loaded
+    if not model_system_initialized and not model_system_loading:
+        model_system_loading = True
+        logger.info(f"Initializing model system with {model_id}...")
+        try:
+            model_system_initialized = initialize_model(model_id)
+            model_system_loading = False
+            if model_system_initialized:
+                logger.info(f"Model {model_id} initialized successfully!")
+            else:
+                logger.warning(f"Failed to initialize model {model_id}")
+        except Exception as e:
+            logger.error(f"Error initializing model {model_id}: {e}")
+            model_system_loading = False
+            model_system_initialized = False
     
-    # Learning-related keywords
-    elif any(word in message_lower for word in ["learn", "study", "education", "knowledge", "teach", "understand"]):
-        return "learning"
-    
-    # Default to general
+    # Generate response using the model system
+    if model_system_initialized:
+        try:
+            response = generate_response(message, model_id)
+            logger.info(f"Generated response using {model_id}")
+            return response
+        except Exception as e:
+            logger.error(f"Error generating response with {model_id}: {e}")
+            return f"Error: Model {model_id} failed to generate response: {str(e)}"
+    elif model_system_loading:
+        return f"Loading model {model_id} to provide intelligent responses. Please try again in a few seconds."
     else:
-        return "general"
-
-def generate_local_response(message: str, model_id: str) -> str:
-    """Generate a contextual response using local knowledge"""
-    global model_70b_initialized, model_70b_loading
-    
-    # Try to use 70B model if requested and available
-    if model_id == "ethos-70b" and MODEL_70B_AVAILABLE:
-        if not model_70b_initialized and not model_70b_loading:
-            # Start loading the 70B model
-            model_70b_loading = True
-            logger.info("Starting 70B model initialization...")
-            try:
-                # Initialize in background
-                model_70b_initialized = initialize_70b_model()
-                model_70b_loading = False
-                if model_70b_initialized:
-                    logger.info("70B model initialized successfully!")
-                else:
-                    logger.warning("Failed to initialize 70B model, falling back to basic responses")
-            except Exception as e:
-                logger.error(f"Error initializing 70B model: {e}")
-                model_70b_loading = False
-                model_70b_initialized = False
-        
-        # If 70B model is ready, use it
-        if model_70b_initialized:
-            try:
-                response = generate_70b_response(message)
-                logger.info("Generated response using 70B model")
-                return response
-            except Exception as e:
-                logger.error(f"Error generating 70B response: {e}")
-                # Fall back to basic response
-                pass
-        elif model_70b_loading:
-            return "I'm loading the 70B model to provide you with more intelligent responses. This may take a moment. Please try again in a few seconds."
-    
-    # Fall back to basic response system
-    message_lower = message.lower()
-    
-    # Handle specific questions about capabilities
-    if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "help me", "capabilities", "features"]):
-        return """I'm Ethos AI, your privacy-focused local assistant! Here's what I can help you with:
-
-🍳 **Cooking & Recipes**: Help with recipes, cooking tips, meal planning, and kitchen advice
-💻 **Programming & Coding**: Assist with code, debugging, software development, and programming concepts  
-🏃‍♂️ **Health & Wellness**: Provide general fitness, nutrition, and wellness information
-📚 **Learning & Education**: Help with studying, explaining concepts, and educational topics
-🤖 **General Assistance**: Answer questions, provide information, and help with various tasks
-
-I operate completely locally without any external tracking or big tech dependencies. Your conversations are private and secure. What would you like help with today?"""
-
-    # Handle greetings
-    elif any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
-        return "Hello! I'm Ethos AI, your local privacy-focused assistant. I'm here to help you with cooking, coding, health, learning, and more - all while keeping your data completely private. What can I help you with today?"
-
-    # Handle "how are you" type questions
-    elif any(phrase in message_lower for phrase in ["how are you", "how do you feel", "are you ok"]):
-        return "I'm functioning perfectly! As a local AI assistant, I'm designed to help you while maintaining complete privacy. I don't have feelings like humans do, but I'm ready and eager to assist you with whatever you need. What would you like to work on?"
-
-    # Analyze intent for other messages
-    intent = analyze_message_intent(message)
-    
-    # Get relevant knowledge base
-    knowledge_base = LOCAL_KNOWLEDGE.get(intent, LOCAL_KNOWLEDGE["general"])
-    
-    # Create a contextual response
-    if intent == "cooking":
-        if "recipe" in message_lower:
-            return f"I'd love to help you with recipes! 🍳 {random.choice(knowledge_base)} What type of dish are you looking to make? I can help with ingredients, techniques, and cooking methods."
-        elif "tip" in message_lower or "advice" in message_lower:
-            return f"Here's a great cooking tip: {random.choice(knowledge_base)} What specific cooking challenge are you facing?"
-        else:
-            return f"I'm your Ethos Cooking Assistant! 🍳 {random.choice(knowledge_base)} I can help with recipes, meal planning, cooking techniques, and kitchen tips. What would you like to cook today?"
-    
-    elif intent == "coding":
-        if any(word in message_lower for word in ["help", "problem", "error", "bug", "debug"]):
-            return f"I'm your Ethos Code Assistant! 💻 {random.choice(knowledge_base)} I can help you debug issues, explain programming concepts, suggest best practices, and review code. What's the programming challenge you're facing?"
-        else:
-            return f"I'm your Ethos Code Assistant! 💻 {random.choice(knowledge_base)} I can help with programming, debugging, code review, and software development. What programming topic would you like to explore?"
-    
-    elif intent == "health":
-        return f"I'm your Ethos Health Assistant! 🏃‍♂️ {random.choice(knowledge_base)} I can provide general wellness information, fitness tips, and nutrition advice. Remember, I provide general information - always consult healthcare professionals for medical advice. What health topic interests you?"
-    
-    elif intent == "learning":
-        return f"I'm your Ethos Learning Assistant! 📚 {random.choice(knowledge_base)} I can help explain concepts, break down complex topics, and assist with your learning journey. What would you like to learn about today?"
-    
-    else:
-        # For general questions, try to provide a helpful response
-        if "?" in message:
-            return f"I'm Ethos AI! 🤖 I'd be happy to help you with that question. {random.choice(knowledge_base)} Could you provide more details about what you're looking for? I can assist with cooking, coding, health, learning, and many other topics."
-        else:
-            return f"I'm Ethos AI! 🤖 {random.choice(knowledge_base)} I'm here to help you with cooking, coding, health, learning, and more - all while keeping your conversations completely private. What would you like to work on?"
+        return f"Error: Model {model_id} is not available. Please try a different model or check system status."
 
 # Global error handler
 @app.exception_handler(Exception)
@@ -372,7 +255,7 @@ async def chat(message: ChatMessage):
             raise HTTPException(status_code=400, detail=str(e))
         
         # Get the model to use
-        model_id = message.model_override or "ethos-general"
+        model_id = message.model_override or "ethos-70b" # Default to 70B
         model = LOCAL_MODELS.get(model_id)
         
         if not model:
@@ -386,7 +269,7 @@ async def chat(message: ChatMessage):
             )
         
         # Generate local AI response
-        ai_response = generate_local_response(content, model_id)
+        ai_response = generate_ai_response(content, model_id)
         
         # Create conversation if needed
         conv_id = message.conversation_id
@@ -438,6 +321,86 @@ async def get_models():
         return {"models": list(LOCAL_MODELS.values())}
     except Exception as e:
         logger.error(f"Error getting models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/models/status")
+async def get_model_system_status():
+    """Get overall model system status"""
+    try:
+        if not MODEL_SYSTEM_AVAILABLE:
+            return {
+                "available": False,
+                "status": "unavailable",
+                "reason": "Model system dependencies not available",
+                "message": "AI model system requires additional dependencies that are not installed"
+            }
+        
+        system_status = get_system_status()
+        return {
+            "available": True,
+            "system_status": system_status,
+            "models": system_status["models"]
+        }
+    except Exception as e:
+        logger.error(f"Error getting model system status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/models/{model_id}/initialize")
+async def initialize_model_endpoint(model_id: str):
+    """Initialize a specific model"""
+    try:
+        if not MODEL_SYSTEM_AVAILABLE:
+            raise HTTPException(status_code=400, detail="Model system dependencies not available")
+        
+        if model_id not in LOCAL_MODELS:
+            raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
+        
+        if model_system_loading:
+            return {"message": "Model system is already loading", "status": "loading"}
+        
+        # Start initialization
+        global model_system_loading
+        model_system_loading = True
+        
+        try:
+            success = initialize_model(model_id)
+            model_system_loading = False
+            global model_system_initialized
+            model_system_initialized = success
+            
+            if success:
+                return {"message": f"Model {model_id} initialized successfully", "status": "ready"}
+            else:
+                return {"message": f"Failed to initialize model {model_id}", "status": "failed"}
+                
+        except Exception as e:
+            model_system_loading = False
+            logger.error(f"Error initializing model {model_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to initialize model {model_id}: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Error in model initialization endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/models/{model_id}/unload")
+async def unload_model_endpoint(model_id: str):
+    """Unload a specific model to free memory"""
+    try:
+        if not MODEL_SYSTEM_AVAILABLE:
+            raise HTTPException(status_code=400, detail="Model system dependencies not available")
+        
+        if model_id not in LOCAL_MODELS:
+            raise HTTPException(status_code=404, detail=f"Model {model_id} not found")
+        
+        unload_model(model_id)
+        global model_system_initialized, model_system_loading
+        model_system_initialized = False
+        model_system_loading = False
+        
+        return {"message": f"Model {model_id} unloaded successfully", "status": "unloaded"}
+        
+    except Exception as e:
+        logger.error(f"Error unloading model {model_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/conversations")
@@ -571,86 +534,6 @@ async def update_config(new_config: dict):
         return {"message": "Configuration updated successfully (local only)"}
     except Exception as e:
         logger.error(f"Error updating config: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/models/70b/status")
-async def get_70b_model_status():
-    """Get 70B model status and information"""
-    try:
-        if not MODEL_70B_AVAILABLE:
-            return {
-                "available": False,
-                "status": "unavailable",
-                "reason": "70B model dependencies not available",
-                "message": "70B model requires additional dependencies that are not installed"
-            }
-        
-        model_info = get_70b_model_info()
-        return {
-            "available": True,
-            "initialized": model_70b_initialized,
-            "loading": model_70b_loading,
-            "model_info": model_info,
-            "status": "ready" if model_70b_initialized else ("loading" if model_70b_loading else "not_initialized")
-        }
-    except Exception as e:
-        logger.error(f"Error getting 70B model status: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/models/70b/initialize")
-async def initialize_70b_model_endpoint():
-    """Initialize the 70B model"""
-    try:
-        if not MODEL_70B_AVAILABLE:
-            raise HTTPException(status_code=400, detail="70B model dependencies not available")
-        
-        if model_70b_loading:
-            return {"message": "70B model is already loading", "status": "loading"}
-        
-        if model_70b_initialized:
-            return {"message": "70B model is already initialized", "status": "ready"}
-        
-        # Start initialization
-        global model_70b_loading
-        model_70b_loading = True
-        
-        # Initialize in background
-        try:
-            success = initialize_70b_model()
-            model_70b_loading = False
-            global model_70b_initialized
-            model_70b_initialized = success
-            
-            if success:
-                return {"message": "70B model initialized successfully", "status": "ready"}
-            else:
-                return {"message": "Failed to initialize 70B model", "status": "failed"}
-                
-        except Exception as e:
-            model_70b_loading = False
-            logger.error(f"Error initializing 70B model: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to initialize 70B model: {str(e)}")
-            
-    except Exception as e:
-        logger.error(f"Error in 70B model initialization endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/models/70b/unload")
-async def unload_70b_model_endpoint():
-    """Unload the 70B model to free memory"""
-    try:
-        if not MODEL_70B_AVAILABLE:
-            raise HTTPException(status_code=400, detail="70B model dependencies not available")
-        
-        unload_70b_model()
-        global model_70b_initialized, model_70b_loading
-        model_70b_initialized = False
-        model_70b_loading = False
-        
-        return {"message": "70B model unloaded successfully", "status": "unloaded"}
-        
-    except Exception as e:
-        logger.error(f"Error unloading 70B model: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Startup event
