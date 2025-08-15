@@ -17,24 +17,29 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
-# Import local AI model system
-try:
-    from models import initialize_model, generate_response, get_model_info, get_system_status, unload_model
-    MODEL_SYSTEM_AVAILABLE = True
-    logger = logging.getLogger(__name__)
-    logger.info("Local AI model system loaded successfully")
-except ImportError as e:
-    logging.warning(f"Local model system not available: {e}")
-    MODEL_SYSTEM_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.info("Using fallback AI system - local models not available")
-
-# For Railway deployment, we'll use the local model system
-# Ollama integration is for local development only
+# Import local AI model system - Lazy loading for Railway stability
+MODEL_SYSTEM_AVAILABLE = False
 model_system_initialized = False
 model_system_loading = False
 
-# Local AI Models - Real local models
+def load_model_system():
+    """Lazy load the model system only when needed"""
+    global MODEL_SYSTEM_AVAILABLE
+    if not MODEL_SYSTEM_AVAILABLE:
+        try:
+            from models import initialize_model, generate_response, get_model_info, get_system_status, unload_model
+            MODEL_SYSTEM_AVAILABLE = True
+            logger.info("Local AI model system loaded successfully")
+            return True
+        except ImportError as e:
+            logging.warning(f"Local model system not available: {e}")
+            MODEL_SYSTEM_AVAILABLE = False
+            logger.info("Using fallback AI system - local models not available")
+            return False
+    return True
+
+# For Railway deployment, we'll use the local model system
+# Ollama integration is for local development only
 LOCAL_MODELS = {
     "ethos-light": {
         "id": "ethos-light",
@@ -95,11 +100,11 @@ LOCAL_MODELS = {
 }
 
 def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
-    """Get response from local AI models"""
+    """Get response from local AI models with lazy loading"""
     global model_system_initialized, model_system_loading
     
-    # Check if local model system is available
-    if not MODEL_SYSTEM_AVAILABLE:
+    # Lazy load the model system
+    if not load_model_system():
         return get_fallback_response(message, model_id)
     
     # Map our model names to actual model IDs
@@ -117,6 +122,7 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
         model_system_loading = True
         logger.info(f"Initializing local model system with {actual_model_id}...")
         try:
+            from models import initialize_model
             model_system_initialized = initialize_model(actual_model_id)
             model_system_loading = False
             if model_system_initialized:
@@ -131,6 +137,7 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
     # Generate response using the local model system
     if model_system_initialized:
         try:
+            from models import generate_response
             response = generate_response(message, actual_model_id)
             logger.info(f"Generated response using local model {actual_model_id}")
             return response
@@ -252,8 +259,8 @@ async def test_endpoint():
 @app.get("/api/models")
 async def get_models():
     """Get available models"""
-    # Check local model system availability
-    local_models_available = MODEL_SYSTEM_AVAILABLE
+    # Check local model system availability with lazy loading
+    local_models_available = load_model_system()
     
     models = [
         {
