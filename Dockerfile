@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy backend directory to app root
+COPY backend/ .
 
 # Expose port
 EXPOSE 8000
