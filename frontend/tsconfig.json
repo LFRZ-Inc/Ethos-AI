@@ -24,7 +24,8 @@
     "noImplicitAny": false,
 
     /* Node types for Vercel */
-    "types": ["node", "vite/client"]
+    "types": ["node", "vite/client"],
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": ["src", "vite.config.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]

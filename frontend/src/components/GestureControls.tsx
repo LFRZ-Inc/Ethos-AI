@@ -37,7 +37,7 @@ const GestureControls: React.FC<GestureControlsProps> = ({
   const [touchPoints, setTouchPoints] = useState<TouchPoint[]>([]);
   const [initialDistance, setInitialDistance] = useState<number>(0);
   const [lastTapTime, setLastTapTime] = useState<number>(0);
-  const [longPressTimer, setLongPressTimer] = useState<number | null>(null);
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const isLongPressActive = useRef<boolean>(false);
@@ -75,7 +75,7 @@ const GestureControls: React.FC<GestureControlsProps> = ({
           }
         }, 500);
         
-        setLongPressTimer(timer as any);
+        setLongPressTimer(timer);
       }
       
       // Handle multi-touch gestures
@@ -113,7 +113,7 @@ const GestureControls: React.FC<GestureControlsProps> = ({
       
       // Clear long press timer
       if (longPressTimer) {
-        clearTimeout(longPressTimer as any);
+        clearTimeout(longPressTimer);
         setLongPressTimer(null);
       }
       
