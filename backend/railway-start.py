@@ -16,7 +16,7 @@ def main():
     """Start the FastAPI application"""
     
     # Get port from Railway environment
-    port = int(os.environ.get("PORT", 8003))
+    port = int(os.environ.get("PORT", 8000))
     
     # Get host from environment
     host = os.environ.get("HOST", "0.0.0.0")
@@ -24,9 +24,9 @@ def main():
     print(f"Starting Ethos AI on {host}:{port}")
     print(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'production')}")
     
-    # Import and start the FastAPI app
+    # Import and start the FastAPI app from railway-main.py
     try:
-        from main import app
+        from railway_main import app
         
         # Start the server
         uvicorn.run(

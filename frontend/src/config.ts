@@ -1,8 +1,8 @@
 // API Configuration - Detect the correct backend URL
 const getApiBaseUrl = () => {
-  // Check for Vercel environment variable first
-  if (process.env.VITE_API_BASE_URL) {
-    return process.env.VITE_API_BASE_URL;
+  // Check for Vite environment variable first
+  if (import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL;
   }
   
   // If we're on the same machine, use localhost
@@ -13,6 +13,12 @@ const getApiBaseUrl = () => {
   // For Vercel deployment, use the same domain
   if (window.location.hostname.includes('vercel.app')) {
     return `https://${window.location.hostname}`;
+  }
+  
+  // For Railway deployment, use the Railway backend URL
+  if (window.location.hostname.includes('railway.app') || 
+      window.location.hostname.includes('ethos-ai-backend')) {
+    return 'https://ethos-ai-backend-production.up.railway.app';
   }
   
   // If accessed from phone/other device, use the PC's IP address

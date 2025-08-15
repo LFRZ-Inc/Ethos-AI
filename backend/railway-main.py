@@ -480,4 +480,4 @@ if __name__ == "__main__":
     print(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'production')}")
     print("Privacy: 100% local - no external dependencies")
     
-    uvicorn.run(app, host=host, port=port, log_level="info") 
+    uvicorn.run(app, host=host, port=port, log_level="info")
