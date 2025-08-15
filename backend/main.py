@@ -162,14 +162,17 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
     """Get response from lightweight AI system - Railway compatible"""
     message_lower = message.lower()
     
+    # Normalize model_id to lowercase for case-insensitive matching
+    model_id_lower = model_id.lower()
+    
     # Lightweight AI responses based on model type and message content
-    if model_id == "ethos-light":
+    if model_id_lower == "ethos-light":
         return get_ethos_light_response(message, message_lower)
-    elif model_id == "ethos-code":
+    elif model_id_lower == "ethos-code":
         return get_ethos_code_response(message, message_lower)
-    elif model_id == "ethos-pro":
+    elif model_id_lower == "ethos-pro":
         return get_ethos_pro_response(message, message_lower)
-    elif model_id == "ethos-creative":
+    elif model_id_lower == "ethos-creative":
         return get_ethos_creative_response(message, message_lower)
     else:
         return get_ethos_light_response(message, message_lower)
@@ -179,6 +182,32 @@ def get_ethos_light_response(message: str, message_lower: str) -> str:
     # Handle questions about what model it is
     if any(phrase in message_lower for phrase in ["what model are you", "which model", "what ai model", "what are you"]):
         return "I'm Ethos Light, a 3B parameter AI model designed for quick responses and general assistance. I'm part of the Ethos AI family - a privacy-first, local AI system that doesn't sell your data or use external APIs. I'm optimized for fast, helpful responses to everyday questions and tasks. How can I assist you today?"
+    
+    # Handle questions about capabilities
+    if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "what are your capabilities", "what are you good at", "what do you specialize in"]):
+        return """As Ethos Light, I'm your fast, privacy-focused AI assistant! Here's what I can do:
+
+**🎯 My Specialties:**
+• Quick answers to general knowledge questions
+• Basic analysis and explanations
+• Everyday task assistance
+• Fast, responsive conversations
+• Privacy-first interactions (no data selling!)
+
+**💡 I Can Help With:**
+• Answering questions about current events, history, science
+• Explaining concepts in simple terms
+• Providing quick facts and information
+• General conversation and assistance
+• Basic problem-solving
+
+**⚡ Why Choose Me:**
+• **Speed**: I'm optimized for quick responses
+• **Privacy**: 100% local processing, no external APIs
+• **Reliability**: Always available and responsive
+• **Simplicity**: Clear, straightforward answers
+
+I'm the fastest member of the Ethos AI family - perfect for quick questions and general assistance! What would you like to know?"""
     
     # Handle greetings
     if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
