@@ -12,7 +12,6 @@ venv/
 README.md
 *.md
 frontend/
-backend/
 scripts/
 *.bat
 *.sh
