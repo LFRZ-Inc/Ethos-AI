@@ -518,5 +518,7 @@ if __name__ == "__main__":
     print(f"Starting Ethos AI on {host}:{port}")
     print(f"Environment: {os.environ.get('RAILWAY_ENVIRONMENT', 'production')}")
     print("Privacy: 100% local - no external dependencies")
+    print("Note: Use gunicorn main:app for production deployment")
     
-    uvicorn.run(app, host=host, port=port, log_level="info") 
+    # Don't run uvicorn here - let gunicorn handle it
+    # uvicorn.run(app, host=host, port=port, log_level="info") 
