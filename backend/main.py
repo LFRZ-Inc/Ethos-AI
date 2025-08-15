@@ -79,43 +79,71 @@ conversation_counter = 0
 
 # Simple AI Models - No heavy dependencies
 LOCAL_MODELS = {
-    "ethos-fallback": {
-        "id": "ethos-fallback",
-        "name": "Ethos Fallback AI",
+    "ethos-light": {
+        "id": "ethos-light",
+        "name": "Ethos Light",
         "type": "local",
         "provider": "ethos",
-        "capabilities": ["general_chat", "privacy_focused", "basic_assistance"],
+        "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
         "enabled": True,
         "status": "available",
-        "description": "Fallback AI system for basic assistance",
-        "parameters": "fallback",
+        "description": "Lightweight AI for quick responses and basic tasks",
+        "parameters": "lightweight",
         "quantization": "none",
         "speed": "fast",
         "capability": "basic"
     },
-    "ethos-simple": {
-        "id": "ethos-simple",
-        "name": "Ethos Simple AI",
+    "ethos-code": {
+        "id": "ethos-code",
+        "name": "Ethos Code",
         "type": "local",
         "provider": "ethos",
-        "capabilities": ["general_chat", "basic_reasoning", "privacy_focused"],
+        "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
         "enabled": True,
         "status": "available",
-        "description": "Simple AI for basic conversations",
-        "parameters": "simple",
+        "description": "Specialized AI for coding and development tasks",
+        "parameters": "code-focused",
         "quantization": "none",
-        "speed": "fast",
-        "capability": "basic"
+        "speed": "medium",
+        "capability": "coding"
+    },
+    "ethos-pro": {
+        "id": "ethos-pro",
+        "name": "Ethos Pro",
+        "type": "local",
+        "provider": "ethos",
+        "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
+        "enabled": True,
+        "status": "available",
+        "description": "Professional AI for complex analysis and detailed work",
+        "parameters": "advanced",
+        "quantization": "none",
+        "speed": "medium",
+        "capability": "advanced"
+    },
+    "ethos-creative": {
+        "id": "ethos-creative",
+        "name": "Ethos Creative",
+        "type": "local",
+        "provider": "ethos",
+        "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
+        "enabled": True,
+        "status": "available",
+        "description": "Creative AI for writing, content creation, and artistic tasks",
+        "parameters": "creative",
+        "quantization": "none",
+        "speed": "medium",
+        "capability": "creative"
     }
 }
 
-def generate_simple_response(message: str, model_id: str = "ethos-fallback") -> str:
-    """Generate simple responses without heavy AI dependencies"""
+def generate_simple_response(message: str, model_id: str = "ethos-light") -> str:
+    """Generate simple responses based on model type"""
     message_lower = message.lower()
     
     # Handle greetings
     if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
-        return "Hello! I'm Ethos AI, your privacy-focused assistant. I'm currently running in clean mode and can help you with basic tasks and questions. What can I assist you with today?"
+        return "Hello! I'm Ethos AI, your privacy-focused assistant. I'm currently running in clean mode and can help you with various tasks. What can I assist you with today?"
     
     # Handle capability questions
     if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "help me", "capabilities", "features"]):
@@ -129,24 +157,32 @@ def generate_simple_response(message: str, model_id: str = "ethos-fallback") -> 
 
 I'm running in clean mode for reliable Railway deployment. What would you like help with?"""
     
-    # Handle questions about the system
-    if any(phrase in message_lower for phrase in ["why clean", "clean mode", "system status", "what's wrong"]):
-        return "I'm running in clean mode to ensure reliable deployment on Railway. This version focuses on basic functionality without heavy AI model dependencies. I can still help you with various tasks!"
+    # Model-specific responses
+    if model_id == "ethos-code":
+        if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript", "html", "css"]):
+            return f"I'm Ethos Code, specialized for programming tasks! I can help you with {message}. I can assist with code writing, debugging, algorithm design, and code review. What specific coding question do you have?"
+        else:
+            return f"I'm Ethos Code, your coding assistant! While I'm specialized for programming tasks, I can also help with general questions. For coding help, just ask about programming, debugging, or any programming language!"
     
-    # Handle coding questions
-    if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript"]):
-        return f"I can help you with programming questions! I'm currently in clean mode, but I can still provide basic coding assistance, explain concepts, and help with simple programming problems. What specific coding question do you have about {message}?"
+    elif model_id == "ethos-pro":
+        if "?" in message:
+            return f"I'm Ethos Pro, designed for detailed analysis and complex reasoning! I can provide in-depth analysis of {message}. I'm particularly good at research, analysis, and detailed explanations. What aspect would you like me to explore?"
+        else:
+            return f"I'm Ethos Pro, your professional analysis assistant! I can help with complex reasoning, detailed analysis, research tasks, and comprehensive explanations. What would you like me to analyze?"
     
-    # Handle general questions
-    if "?" in message:
-        return f"That's an interesting question about {message}! I'm currently running in clean mode for reliable deployment. I can provide basic information and help with various topics. What specific aspect would you like me to help with?"
+    elif model_id == "ethos-creative":
+        if any(word in message_lower for word in ["write", "story", "creative", "content", "art", "design", "poem", "article"]):
+            return f"I'm Ethos Creative, your creative writing assistant! I can help you with {message}. I'm specialized for storytelling, content creation, creative writing, and artistic tasks. What would you like to create?"
+        else:
+            return f"I'm Ethos Creative, designed for creative tasks! I can help with writing, storytelling, content creation, brainstorming, and artistic projects. What creative project would you like to work on?"
     
-    # Handle statements
-    if any(word in message_lower for word in ["thanks", "thank you", "appreciate"]):
-        return "You're welcome! I'm happy to help. I'm running in clean mode for reliable deployment, but I can still assist you with various tasks. Is there anything else you'd like help with?"
-    
-    # Default response
-    return f"I understand you're asking about {message}. I'm currently running in clean mode for reliable deployment. I can provide basic assistance and engage in conversation. How can I help you with this topic?"
+    else:  # ethos-light (default)
+        if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript"]):
+            return f"I can help you with programming questions! I'm currently in clean mode, but I can still provide basic coding assistance, explain concepts, and help with simple programming problems. What specific coding question do you have about {message}?"
+        elif "?" in message:
+            return f"That's an interesting question about {message}! I'm currently running in clean mode for reliable deployment. I can provide basic information and help with various topics. What specific aspect would you like me to help with?"
+        else:
+            return f"I understand you're asking about {message}. I'm currently running in clean mode for reliable deployment. I can provide basic assistance and engage in conversation. How can I help you with this topic?"
 
 # API Endpoints
 @app.get("/")
@@ -165,7 +201,7 @@ async def root():
 async def health():
     """Health check endpoint for Railway"""
     try:
-        return {
+        response_data = {
             "status": "healthy", 
             "service": "ethos-ai-backend",
             "mode": "clean",
@@ -174,6 +210,14 @@ async def health():
             "environment": os.environ.get("RAILWAY_ENVIRONMENT", "production"),
             "port": os.environ.get("PORT", "8000")
         }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -193,11 +237,19 @@ async def test_endpoint():
 async def get_models():
     """Get available models"""
     try:
-        return {
+        response_data = {
             "models": list(LOCAL_MODELS.values()),
             "total": len(LOCAL_MODELS),
             "status": "available"
         }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
     except Exception as e:
         logger.error(f"Error getting models: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -223,7 +275,7 @@ async def chat(message: ChatMessage):
     """Main chat endpoint"""
     try:
         content = message.get_content()
-        model_id = message.model_override or "ethos-fallback"
+        model_id = message.model_override or "ethos-light"
         
         # Generate response
         response_text = generate_simple_response(content, model_id)
