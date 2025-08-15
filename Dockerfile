@@ -8,11 +8,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY backend/requirements-railway.txt requirements.txt
+COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 # Copy application code
-COPY backend/ .
+COPY . .
 
 # Expose port
 EXPOSE 8000
