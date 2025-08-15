@@ -176,6 +176,10 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
 
 def get_ethos_light_response(message: str, message_lower: str) -> str:
     """Ethos Light (3B) - Fast, general responses"""
+    # Handle questions about what model it is
+    if any(phrase in message_lower for phrase in ["what model are you", "which model", "what ai model", "what are you"]):
+        return "I'm Ethos Light, a 3B parameter AI model designed for quick responses and general assistance. I'm part of the Ethos AI family - a privacy-first, local AI system that doesn't sell your data or use external APIs. I'm optimized for fast, helpful responses to everyday questions and tasks. How can I assist you today?"
+    
     # Handle greetings
     if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
         return "Hello! I'm Ethos Light, your privacy-focused AI assistant. I'm designed for quick responses and general assistance. How can I help you today?"
