@@ -7,6 +7,7 @@ import { useConversationStore } from '../stores/appStore';
 import toast from 'react-hot-toast';
 import MessageComponent from './MessageComponent';
 import ModelSelector from './ModelSelector';
+import Model70BStatus from './Model70BStatus';
 import ToolPanel from './ToolPanel';
 import VoiceInput from './VoiceInput';
 import ThemeSwitcher from './ThemeSwitcher';
@@ -254,6 +255,7 @@ const ChatInterface: React.FC = () => {
             Ethos AI
           </h1>
           <ModelSelector />
+          <Model70BStatus />
         </div>
         
         {/* Global Search Bar */}

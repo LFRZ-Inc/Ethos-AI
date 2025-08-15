@@ -19,6 +19,14 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import uvicorn
 
+# Import 70B model integration
+try:
+    from models import initialize_70b_model, generate_70b_response, get_70b_model_info, unload_70b_model
+    MODEL_70B_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"70B model not available: {e}")
+    MODEL_70B_AVAILABLE = False
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -49,6 +57,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global 70B model status
+model_70b_initialized = False
+model_70b_loading = False
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -126,6 +138,18 @@ LOCAL_KNOWLEDGE = {
 
 # Local AI Models - Privacy-focused
 LOCAL_MODELS = {
+    "ethos-70b": {
+        "id": "ethos-70b",
+        "name": "Ethos 70B AI",
+        "type": "local",
+        "provider": "ethos",
+        "capabilities": ["general_chat", "reasoning", "privacy_focused", "advanced_ai"],
+        "enabled": True,
+        "status": "available" if MODEL_70B_AVAILABLE else "unavailable",
+        "description": "70B parameter local AI for advanced conversations",
+        "parameters": "70B",
+        "quantization": "4-bit"
+    },
     "ethos-general": {
         "id": "ethos-general",
         "name": "Ethos General AI",
@@ -195,6 +219,41 @@ def analyze_message_intent(message: str) -> str:
 
 def generate_local_response(message: str, model_id: str) -> str:
     """Generate a contextual response using local knowledge"""
+    global model_70b_initialized, model_70b_loading
+    
+    # Try to use 70B model if requested and available
+    if model_id == "ethos-70b" and MODEL_70B_AVAILABLE:
+        if not model_70b_initialized and not model_70b_loading:
+            # Start loading the 70B model
+            model_70b_loading = True
+            logger.info("Starting 70B model initialization...")
+            try:
+                # Initialize in background
+                model_70b_initialized = initialize_70b_model()
+                model_70b_loading = False
+                if model_70b_initialized:
+                    logger.info("70B model initialized successfully!")
+                else:
+                    logger.warning("Failed to initialize 70B model, falling back to basic responses")
+            except Exception as e:
+                logger.error(f"Error initializing 70B model: {e}")
+                model_70b_loading = False
+                model_70b_initialized = False
+        
+        # If 70B model is ready, use it
+        if model_70b_initialized:
+            try:
+                response = generate_70b_response(message)
+                logger.info("Generated response using 70B model")
+                return response
+            except Exception as e:
+                logger.error(f"Error generating 70B response: {e}")
+                # Fall back to basic response
+                pass
+        elif model_70b_loading:
+            return "I'm loading the 70B model to provide you with more intelligent responses. This may take a moment. Please try again in a few seconds."
+    
+    # Fall back to basic response system
     message_lower = message.lower()
     
     # Handle specific questions about capabilities
@@ -512,6 +571,86 @@ async def update_config(new_config: dict):
         return {"message": "Configuration updated successfully (local only)"}
     except Exception as e:
         logger.error(f"Error updating config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/models/70b/status")
+async def get_70b_model_status():
+    """Get 70B model status and information"""
+    try:
+        if not MODEL_70B_AVAILABLE:
+            return {
+                "available": False,
+                "status": "unavailable",
+                "reason": "70B model dependencies not available",
+                "message": "70B model requires additional dependencies that are not installed"
+            }
+        
+        model_info = get_70b_model_info()
+        return {
+            "available": True,
+            "initialized": model_70b_initialized,
+            "loading": model_70b_loading,
+            "model_info": model_info,
+            "status": "ready" if model_70b_initialized else ("loading" if model_70b_loading else "not_initialized")
+        }
+    except Exception as e:
+        logger.error(f"Error getting 70B model status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/models/70b/initialize")
+async def initialize_70b_model_endpoint():
+    """Initialize the 70B model"""
+    try:
+        if not MODEL_70B_AVAILABLE:
+            raise HTTPException(status_code=400, detail="70B model dependencies not available")
+        
+        if model_70b_loading:
+            return {"message": "70B model is already loading", "status": "loading"}
+        
+        if model_70b_initialized:
+            return {"message": "70B model is already initialized", "status": "ready"}
+        
+        # Start initialization
+        global model_70b_loading
+        model_70b_loading = True
+        
+        # Initialize in background
+        try:
+            success = initialize_70b_model()
+            model_70b_loading = False
+            global model_70b_initialized
+            model_70b_initialized = success
+            
+            if success:
+                return {"message": "70B model initialized successfully", "status": "ready"}
+            else:
+                return {"message": "Failed to initialize 70B model", "status": "failed"}
+                
+        except Exception as e:
+            model_70b_loading = False
+            logger.error(f"Error initializing 70B model: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to initialize 70B model: {str(e)}")
+            
+    except Exception as e:
+        logger.error(f"Error in 70B model initialization endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/models/70b/unload")
+async def unload_70b_model_endpoint():
+    """Unload the 70B model to free memory"""
+    try:
+        if not MODEL_70B_AVAILABLE:
+            raise HTTPException(status_code=400, detail="70B model dependencies not available")
+        
+        unload_70b_model()
+        global model_70b_initialized, model_70b_loading
+        model_70b_initialized = False
+        model_70b_loading = False
+        
+        return {"message": "70B model unloaded successfully", "status": "unloaded"}
+        
+    except Exception as e:
+        logger.error(f"Error unloading 70B model: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Startup event
