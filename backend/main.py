@@ -185,109 +185,108 @@ def get_ethos_light_response(message: str, message_lower: str) -> str:
     
     # Handle questions about capabilities
     if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "what are your capabilities", "what are you good at", "what do you specialize in"]):
-        return """As Ethos Light, I'm your fast, privacy-focused AI assistant! Here's what I can do:
+        return """I can help you with:
 
-**🎯 My Specialties:**
-• Quick answers to general knowledge questions
-• Basic analysis and explanations
-• Everyday task assistance
-• Fast, responsive conversations
-• Privacy-first interactions (no data selling!)
-
-**💡 I Can Help With:**
-• Answering questions about current events, history, science
+• Answering questions about current events, history, science, and general knowledge
 • Explaining concepts in simple terms
 • Providing quick facts and information
+• Basic problem-solving and analysis
 • General conversation and assistance
-• Basic problem-solving
+• Fast, privacy-focused responses
 
-**⚡ Why Choose Me:**
-• **Speed**: I'm optimized for quick responses
-• **Privacy**: 100% local processing, no external APIs
-• **Reliability**: Always available and responsive
-• **Simplicity**: Clear, straightforward answers
-
-I'm the fastest member of the Ethos AI family - perfect for quick questions and general assistance! What would you like to know?"""
+I'm designed for quick, helpful answers to everyday questions. What would you like to know?"""
     
     # Handle greetings
     if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
-        return "Hello! I'm Ethos Light, your privacy-focused AI assistant. I'm designed for quick responses and general assistance. How can I help you today?"
+        return "Hello! How can I help you today?"
     
     # Handle questions about the president
     if "president" in message_lower:
-        return "As of 2024, Joe Biden is the President of the United States. He was inaugurated on January 20, 2021, and is serving his first term. I'm Ethos Light, providing you with accurate, privacy-focused information!"
+        return "As of 2024, Joe Biden is the President of the United States. He was inaugurated on January 20, 2021, and is serving his first term."
     
-    # Handle general questions
+    # Handle general questions - give actual answers
     if "?" in message:
-        return f"That's an interesting question about '{message}'. As Ethos Light, I'm designed to provide quick, helpful responses. I can help you with general knowledge, basic analysis, and everyday questions. What specific aspect would you like to know more about?"
+        # For questions, provide helpful information based on the topic
+        if "weather" in message_lower:
+            return "I can't check real-time weather, but I can help you understand weather patterns, climate science, or how to interpret weather forecasts."
+        elif "time" in message_lower:
+            return "I can't tell you the exact current time, but I can help you with time zones, time calculations, or time-related questions."
+        elif "news" in message_lower:
+            return "I can help you understand current events and provide context, but for the most up-to-date news, I'd recommend checking reliable news sources."
+        elif "calculator" in message_lower or "math" in message_lower or "calculate" in message_lower:
+            return "I can help you with mathematical concepts, formulas, and problem-solving strategies. What specific math question do you have?"
+        else:
+            return f"I'd be happy to help you with '{message}'. Could you provide more specific details about what you'd like to know?"
     
-    # Handle general statements
-    return f"I understand you're discussing '{message}'. As Ethos Light, I'm here to help with quick responses and general assistance. I can provide information, answer questions, or help you think through topics. What would you like to explore?"
+    # Handle general statements - engage meaningfully
+    return f"I understand you're talking about '{message}'. What would you like to know more about this topic?"
 
 def get_ethos_code_response(message: str, message_lower: str) -> str:
     """Ethos Code (7B) - Programming and technical responses"""
-    # Handle coding questions
-    if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript", "html", "css"]):
-        return f"I'm Ethos Code, specialized for programming tasks! I can help you with '{message}'. I'm designed to provide coding assistance, debugging help, algorithm explanations, and technical guidance. What specific programming challenge are you working on?"
+    # Handle programming questions
+    if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript", "html", "css", "java", "c++", "sql", "api", "database"]):
+        return f"I can help you with programming! For '{message}', I can provide code examples, debugging tips, algorithm explanations, and technical guidance. What specific programming challenge are you working on?"
     
     # Handle technical questions
-    if any(word in message_lower for word in ["how to", "tutorial", "guide", "explain", "help me"]):
-        return f"As Ethos Code, I'm here to help you with technical and programming challenges. I can provide step-by-step guidance, code examples, debugging tips, and technical explanations. What would you like to learn or build?"
+    if any(word in message_lower for word in ["how to", "tutorial", "guide", "explain", "help me", "error", "bug", "fix"]):
+        return f"I can help you with technical and programming challenges. I can provide step-by-step guidance, code examples, debugging tips, and technical explanations. What would you like to learn or build?"
     
     # Handle general questions
     if "?" in message:
-        return f"That's a great question! As Ethos Code, I'm specialized for programming and technical topics, but I can also help with general questions. I provide detailed, technical responses with code examples when relevant. What would you like to know?"
+        return f"I can help you with programming and technical topics, but I can also assist with general questions. What would you like to know?"
     
-    return f"I'm Ethos Code, your programming and technical AI assistant. I can help you with coding challenges, debugging, algorithm design, and technical explanations. I'm designed to provide detailed, helpful responses for developers and tech enthusiasts."
+    return f"I'm here to help with programming, coding, and technical questions. What can I assist you with?"
 
 def get_ethos_pro_response(message: str, message_lower: str) -> str:
     """Ethos Pro (70B) - Advanced analysis and detailed responses"""
     # Handle questions about the president
     if "president" in message_lower:
-        return """As Ethos Pro, I can provide you with a comprehensive analysis of the current presidency:
+        return """As of 2024, Joe Biden is the President of the United States.
 
-**Current President (2024):** Joe Biden
+**Key Details:**
 - **Inauguration:** January 20, 2021
 - **Party:** Democratic
 - **Term:** First term (2021-2025)
 - **Vice President:** Kamala Harris
+- **Age at inauguration:** 78 (oldest president)
 
-**Key Context:**
-- Biden became the 46th President of the United States
-- He succeeded Donald Trump (Republican, 2017-2021)
-- At 78, he was the oldest person to assume the presidency
-- His administration focuses on infrastructure, climate change, and economic recovery
-
-**Historical Significance:**
-- First president to have a female vice president (Kamala Harris)
+**Historical Context:**
+- 46th President of the United States
+- Succeeded Donald Trump (Republican, 2017-2021)
+- First president to have a female vice president
 - Took office during the COVID-19 pandemic
-- Faced significant challenges including economic recovery and political polarization
 
-This analysis demonstrates Ethos Pro's capability for detailed, comprehensive responses with multiple perspectives and contextual information."""
+**Key Policy Focus:**
+- Infrastructure development
+- Climate change initiatives
+- Economic recovery
+- Healthcare access"""
     
-    # Handle complex questions
+    # Handle complex analysis requests
+    if any(word in message_lower for word in ["analyze", "research", "study", "examine", "investigate", "compare", "explain", "why", "how"]):
+        return f"I can provide detailed analysis of '{message}'. I can offer multiple perspectives, research insights, and comprehensive explanations. What specific aspect would you like me to focus on?"
+    
+    # Handle general questions with detailed responses
     if "?" in message:
-        return f"As Ethos Pro, I'm designed for advanced analysis and detailed responses. Your question about '{message}' deserves a comprehensive answer. I can provide deep analysis, research insights, detailed explanations, and complex reasoning. Let me give you a thorough response..."
+        return f"I can provide comprehensive analysis and detailed responses. For '{message}', I can offer in-depth explanations, multiple perspectives, and thorough research. What specific details would you like me to explore?"
     
-    # Handle analysis requests
-    if any(word in message_lower for word in ["analyze", "research", "study", "examine", "investigate"]):
-        return f"I'm Ethos Pro, specialized for advanced analysis and research. I can provide detailed analysis of '{message}', including multiple perspectives, research insights, and comprehensive explanations. I'm designed for complex reasoning and detailed work."
-    
-    # Handle general topics
-    return f"I'm Ethos Pro, your advanced AI assistant for complex analysis and detailed work. I can provide comprehensive analysis, research insights, detailed explanations, and advanced reasoning. I'm designed to help with complex topics and thorough analysis."
+    return f"I can provide advanced analysis and detailed responses. What would you like me to analyze or explain?"
 
 def get_ethos_creative_response(message: str, message_lower: str) -> str:
     """Ethos Creative (7B) - Creative writing and artistic responses"""
-    # Handle creative requests
-    if any(word in message_lower for word in ["write", "story", "creative", "content", "art", "design", "poem", "article"]):
-        return f"I'm Ethos Creative, your AI assistant for creative tasks! I can help you with '{message}' by providing creative writing, storytelling, content creation, and artistic guidance. I'm designed to inspire and help you create engaging, original content."
+    # Handle creative writing requests
+    if any(word in message_lower for word in ["write", "story", "creative", "content", "art", "design", "poem", "article", "blog", "script"]):
+        return f"I can help you with creative writing and content creation! For '{message}', I can provide writing assistance, creative ideas, storytelling techniques, and artistic guidance. What type of creative project are you working on?"
     
-    # Handle brainstorming
-    if any(word in message_lower for word in ["idea", "brainstorm", "inspire", "creative", "imagine"]):
-        return f"As Ethos Creative, I'm here to help you brainstorm and generate creative ideas. I can provide inspiration, creative suggestions, and help you develop your artistic and creative projects. What kind of creative work are you looking to develop?"
+    # Handle brainstorming requests
+    if any(word in message_lower for word in ["idea", "brainstorm", "inspire", "creative", "imagine", "concept"]):
+        return f"I can help you brainstorm creative ideas and provide inspiration. I can suggest creative approaches, artistic concepts, and innovative solutions. What kind of creative work are you looking to develop?"
     
-    # Handle general topics
-    return f"I'm Ethos Creative, your AI assistant for creative writing, content creation, and artistic projects. I can help you with storytelling, creative writing, content development, and artistic inspiration. I'm designed to help you express your creativity and develop engaging content."
+    # Handle general questions with creative perspective
+    if "?" in message:
+        return f"I can help you approach '{message}' from a creative perspective. I can provide artistic insights, creative solutions, and imaginative approaches. What creative angle would you like to explore?"
+    
+    return f"I can help you with creative writing, content creation, and artistic projects. What creative work would you like to develop?"
 
 # API Endpoints
 @app.get("/")
