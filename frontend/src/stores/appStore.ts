@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { API_ENDPOINTS } from '../config';
 
 interface AppState {
   theme: 'light' | 'dark';
@@ -84,7 +85,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   loadConversations: async () => {
     set({ isLoading: true });
     try {
-      const response = await fetch('http://localhost:8003/api/conversations');
+      const response = await fetch(API_ENDPOINTS.conversations);
       if (response.ok) {
         const data = await response.json();
         // Handle both direct array and object with conversations property
