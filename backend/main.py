@@ -4,20 +4,79 @@ Ethos AI - Local AI Backend with Real Local Models
 """
 
 import os
-import logging
 import time
-import json
+import logging
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any, List
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import List, Optional, Dict, Any
 import uvicorn
 
-# Import local AI model system - Lazy loading for Railway stability
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Create FastAPI app
+app = FastAPI(
+    title="Ethos AI",
+    description="Privacy-First Local AI Backend",
+    version="1.0.0"
+)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "*",  # Allow all origins for now
+        "https://ethos-ai-phi.vercel.app",
+        "https://ethos-ai-phi.vercel.app/",
+        "https://*.vercel.app",
+        "https://*.railway.app",
+        "http://localhost:3000",
+        "http://localhost:1420",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:1420"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
+
+# Pydantic models
+class ChatMessage(BaseModel):
+    content: Optional[str] = None
+    message: Optional[str] = None
+    conversation_id: Optional[str] = None
+    model_override: Optional[str] = None
+    use_tools: bool = True
+    
+    def get_content(self) -> str:
+        """Get the message content from either content or message field"""
+        if self.content:
+            return self.content
+        elif self.message:
+            return self.message
+        else:
+            raise ValueError("Either 'content' or 'message' field is required")
+
+class ChatResponse(BaseModel):
+    content: str
+    model_used: str
+    timestamp: str
+    tools_called: Optional[list] = None
+
+# In-memory storage for development
+conversations = {}
+messages = {}
+conversation_counter = 0
+
+# Lightweight model system for Railway stability
 MODEL_SYSTEM_AVAILABLE = False
 model_system_initialized = False
 model_system_loading = False
@@ -27,6 +86,7 @@ def load_model_system():
     global MODEL_SYSTEM_AVAILABLE
     if not MODEL_SYSTEM_AVAILABLE:
         try:
+            # Try to import heavy dependencies only when needed
             from models import initialize_model, generate_response, get_model_info, get_system_status, unload_model
             MODEL_SYSTEM_AVAILABLE = True
             logger.info("Local AI model system loaded successfully")
@@ -34,12 +94,11 @@ def load_model_system():
         except ImportError as e:
             logging.warning(f"Local model system not available: {e}")
             MODEL_SYSTEM_AVAILABLE = False
-            logger.info("Using fallback AI system - local models not available")
+            logger.info("Using lightweight fallback system - models not available")
             return False
     return True
 
-# For Railway deployment, we'll use the local model system
-# Ollama integration is for local development only
+# Local AI Models - Real local models
 LOCAL_MODELS = {
     "ethos-light": {
         "id": "ethos-light",
@@ -48,7 +107,7 @@ LOCAL_MODELS = {
         "provider": "ethos",
         "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
         "enabled": True,
-        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "status": "unavailable",
         "description": "Lightweight AI for quick responses and basic tasks",
         "parameters": "3B",
         "quantization": "4-bit",
@@ -62,7 +121,7 @@ LOCAL_MODELS = {
         "provider": "ethos",
         "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
         "enabled": True,
-        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "status": "unavailable",
         "description": "Specialized AI for coding and development tasks",
         "parameters": "7B",
         "quantization": "4-bit",
@@ -76,7 +135,7 @@ LOCAL_MODELS = {
         "provider": "ethos",
         "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
         "enabled": True,
-        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "status": "unavailable",
         "description": "Professional AI for complex analysis and detailed work",
         "parameters": "70B",
         "quantization": "4-bit",
@@ -90,7 +149,7 @@ LOCAL_MODELS = {
         "provider": "ethos",
         "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
         "enabled": True,
-        "status": "available" if MODEL_SYSTEM_AVAILABLE else "unavailable",
+        "status": "unavailable",
         "description": "Creative AI for writing, content creation, and artistic tasks",
         "parameters": "7B",
         "quantization": "4-bit",
@@ -150,68 +209,39 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
         return f"Error: Local model {actual_model_id} is not available. Please try a different model or check system status."
 
 def get_fallback_response(message: str, model_id: str) -> str:
-    """Fallback response when local models are unavailable"""
-    message_lower = message.lower()
-    
-    # Handle greetings
-    if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
-        return "Hello! I'm Ethos AI, your privacy-focused local assistant. I'm currently running in fallback mode while the local AI models are being set up. I can still help you with basic tasks and questions. What can I assist you with today?"
-    
-    # Handle capability questions
-    if any(phrase in message_lower for phrase in ["what can you do", "what do you do", "help me", "capabilities", "features"]):
-        return """I'm Ethos AI, your privacy-focused local assistant! Here's what I can help you with:
-
-🤖 **Current Mode**: Fallback AI (local models being initialized)
-💬 **General Chat**: I can engage in conversations and answer questions
-📝 **Text Processing**: Help with writing, editing, and text analysis
-🧮 **Basic Reasoning**: Simple problem-solving and explanations
-🔒 **Privacy**: 100% local processing - no external tracking
-
-The local 70B, 7B, and 3B models are being set up and will provide even more intelligent responses once available. What would you like help with?"""
-    
-    # Handle questions about the system
-    if any(phrase in message_lower for phrase in ["why unavailable", "models unavailable", "system status", "what's wrong"]):
-        return "The local AI models (70B, 7B, 3B) are currently being initialized on the server. This requires loading large model files and setting up the local AI processing environment. I'm working in fallback mode to provide basic assistance while this happens. The models should become available soon!"
-    
-    # Model-specific responses
-    if model_id == "ethos-code":
-        if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript", "html", "css"]):
-            return f"I'm Ethos Code, specialized for programming tasks! I can help you with {message}. The local 7B coding model is being initialized and will provide advanced programming assistance once available. For now, I can provide basic coding guidance and help you structure your code."
-        else:
-            return f"I'm Ethos Code, your coding assistant! While I'm specialized for programming tasks, I can also help with general questions. The local 7B coding model will provide advanced programming help once initialized."
-    
-    elif model_id == "ethos-pro":
-        if "?" in message:
-            return f"I'm Ethos Pro, designed for detailed analysis and complex reasoning! I can provide analysis of {message}. The local 70B model is being initialized and will provide advanced reasoning capabilities once available. For now, I can help you structure your thoughts and approach to this question."
-        else:
-            return f"I'm Ethos Pro, your professional analysis assistant! I can help with complex reasoning, detailed analysis, research tasks, and comprehensive explanations. The local 70B model will provide advanced analysis capabilities once initialized."
-    
-    elif model_id == "ethos-creative":
-        if any(word in message_lower for word in ["write", "story", "creative", "content", "art", "design", "poem", "article"]):
-            return f"I'm Ethos Creative, your creative writing assistant! I can help you with {message}. The local 7B creative model is being initialized and will provide advanced creative capabilities once available. For now, I can help you brainstorm ideas and structure your creative projects."
-        else:
-            return f"I'm Ethos Creative, designed for creative tasks! I can help with writing, storytelling, content creation, brainstorming, and artistic projects. The local 7B creative model will provide advanced creative capabilities once initialized."
-    
-    else:  # ethos-light (default)
-        if any(word in message_lower for word in ["code", "program", "debug", "algorithm", "function", "python", "javascript"]):
-            return f"I can help you with programming questions! I'm currently in fallback mode, but I can still provide basic coding assistance, explain concepts, and help with simple programming problems. The local 3B model will provide fast responses once initialized."
-        elif "?" in message:
-            return f"That's an interesting question about {message}! I'm currently running in fallback mode while the local 3B model is being initialized. For now, I can help you think through this step by step."
-        else:
-            return f"I understand you're asking about {message}. I'm currently running in fallback mode while the local 3B model is being initialized. I can still help you organize your thoughts and approach to this topic."
+    """Fallback response when AI models are not available"""
+    responses = {
+        "ethos-light": f"🤖 Ethos Light (3B) is currently loading. Your message: '{message[:50]}...' - Please wait for model initialization.",
+        "ethos-code": f"💻 Ethos Code (7B) is preparing for coding tasks. Your message: '{message[:50]}...' - Model loading in progress.",
+        "ethos-pro": f"🧠 Ethos Pro (70B) is initializing for advanced analysis. Your message: '{message[:50]}...' - Please be patient.",
+        "ethos-creative": f"🎨 Ethos Creative (7B) is getting ready for creative tasks. Your message: '{message[:50]}...' - Model loading..."
+    }
+    return responses.get(model_id, f"Ethos AI is loading models. Your message: '{message[:50]}...' - Please try again in a moment.")
 
 # API Endpoints
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {
-        "message": "Ethos AI Backend is running!", 
-        "status": "healthy",
-        "version": "1.0.0",
-        "mode": "clean",
-        "privacy": "100% local - no external tracking",
-        "timestamp": time.time()
-    }
+    try:
+        response_data = {
+            "message": "Ethos AI Backend is running!",
+            "status": "healthy",
+            "version": "1.0.0",
+            "mode": "privacy-first",
+            "privacy": "100% local - no external tracking",
+            "timestamp": time.time()
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Root endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
@@ -247,126 +277,161 @@ async def health_check():
 
 @app.get("/test")
 async def test_endpoint():
-    """Test endpoint to verify backend is working"""
-    return {
-        "status": "ok",
-        "message": "Backend is working",
-        "mode": "clean",
-        "timestamp": time.time(),
-        "cors_enabled": True
-    }
+    """Test endpoint"""
+    try:
+        response_data = {
+            "status": "ok",
+            "message": "Backend is working",
+            "mode": "privacy-first",
+            "timestamp": time.time(),
+            "cors_enabled": True
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Test endpoint error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/models")
 async def get_models():
     """Get available models"""
-    # Check local model system availability with lazy loading
-    local_models_available = load_model_system()
-    
-    models = [
-        {
-            "id": "ethos-light",
-            "name": "Ethos Light",
-            "type": "local",
-            "provider": "ethos",
-            "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
-            "enabled": True,
+    try:
+        # Check local model system availability with lazy loading
+        local_models_available = load_model_system()
+        
+        models = [
+            {
+                "id": "ethos-light",
+                "name": "Ethos Light",
+                "type": "local",
+                "provider": "ethos",
+                "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
+                "enabled": True,
+                "status": "available" if local_models_available else "unavailable",
+                "description": "Lightweight AI for quick responses and basic tasks",
+                "parameters": "3B",
+                "quantization": "4-bit",
+                "speed": "fast",
+                "capability": "basic"
+            },
+            {
+                "id": "ethos-code",
+                "name": "Ethos Code", 
+                "type": "local",
+                "provider": "ethos",
+                "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
+                "enabled": True,
+                "status": "available" if local_models_available else "unavailable",
+                "description": "Specialized AI for coding and development tasks",
+                "parameters": "7B",
+                "quantization": "4-bit", 
+                "speed": "medium",
+                "capability": "coding"
+            },
+            {
+                "id": "ethos-pro",
+                "name": "Ethos Pro",
+                "type": "local", 
+                "provider": "ethos",
+                "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
+                "enabled": True,
+                "status": "available" if local_models_available else "unavailable",
+                "description": "Professional AI for complex analysis and detailed work",
+                "parameters": "70B",
+                "quantization": "4-bit",
+                "speed": "slow", 
+                "capability": "advanced"
+            },
+            {
+                "id": "ethos-creative",
+                "name": "Ethos Creative",
+                "type": "local",
+                "provider": "ethos", 
+                "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
+                "enabled": True,
+                "status": "available" if local_models_available else "unavailable",
+                "description": "Creative AI for writing, content creation, and artistic tasks",
+                "parameters": "7B",
+                "quantization": "4-bit",
+                "speed": "medium",
+                "capability": "creative"
+            }
+        ]
+        
+        response_data = {
+            "models": models,
+            "total": len(models),
             "status": "available" if local_models_available else "unavailable",
-            "description": "Lightweight AI for quick responses and basic tasks",
-            "parameters": "3B",
-            "quantization": "4-bit",
-            "speed": "fast",
-            "capability": "basic"
-        },
-        {
-            "id": "ethos-code",
-            "name": "Ethos Code", 
-            "type": "local",
-            "provider": "ethos",
-            "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
-            "enabled": True,
-            "status": "available" if local_models_available else "unavailable",
-            "description": "Specialized AI for coding and development tasks",
-            "parameters": "7B",
-            "quantization": "4-bit", 
-            "speed": "medium",
-            "capability": "coding"
-        },
-        {
-            "id": "ethos-pro",
-            "name": "Ethos Pro",
-            "type": "local", 
-            "provider": "ethos",
-            "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
-            "enabled": True,
-            "status": "available" if local_models_available else "unavailable",
-            "description": "Professional AI for complex analysis and detailed work",
-            "parameters": "70B",
-            "quantization": "4-bit",
-            "speed": "slow", 
-            "capability": "advanced"
-        },
-        {
-            "id": "ethos-creative",
-            "name": "Ethos Creative",
-            "type": "local",
-            "provider": "ethos", 
-            "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
-            "enabled": True,
-            "status": "available" if local_models_available else "unavailable",
-            "description": "Creative AI for writing, content creation, and artistic tasks",
-            "parameters": "7B",
-            "quantization": "4-bit",
-            "speed": "medium",
-            "capability": "creative"
+            "model_system": "local" if local_models_available else "fallback"
         }
-    ]
-    
-    response_data = {
-        "models": models,
-        "total": len(models),
-        "status": "available" if local_models_available else "unavailable",
-        "model_system": "local" if local_models_available else "fallback"
-    }
-    
-    from fastapi.responses import JSONResponse
-    response = JSONResponse(content=response_data)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/models/status")
 async def get_model_status():
     """Get model system status"""
     try:
-        return {
-            "status": "available",
-            "mode": "clean",
-            "models_loaded": len(LOCAL_MODELS),
-            "total_models": len(LOCAL_MODELS),
-            "system_healthy": True,
-            "timestamp": time.time()
+        local_models_available = load_model_system()
+        
+        status_data = {
+            "system_status": "available" if local_models_available else "unavailable",
+            "models_loaded": local_models_available,
+            "privacy_mode": "enabled",
+            "external_apis": "disabled",
+            "data_collection": "disabled"
         }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=status_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
     except Exception as e:
         logger.error(f"Error getting model status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
-    """Main chat endpoint"""
+    """Chat endpoint"""
     try:
         content = message.get_content()
         model_id = message.model_override or "ethos-light"
         
-        # Generate response
-        response_text = get_local_ai_response(content, model_id)
+        logger.info(f"Received chat message: {content[:50]}... with model: {model_id}")
         
-        return ChatResponse(
-            content=response_text,
-            model_used=model_id,
-            timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
-            tools_called=[]
-        )
+        # Get response from local AI
+        response_content = get_local_ai_response(content, model_id)
+        
+        response_data = {
+            "content": response_content,
+            "model_used": model_id,
+            "timestamp": datetime.now().isoformat(),
+            "privacy": "100% local processing"
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
         
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
@@ -515,12 +580,12 @@ async def get_privacy_info():
 # Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
-    logger.error(f"Global exception handler caught: {exc}")
+    """Global exception handler"""
+    logger.error(f"Global exception: {exc}")
     return JSONResponse(
         status_code=500,
         content={"error": "Internal server error", "detail": str(exc)}
     )
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port) 
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080))) 
