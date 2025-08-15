@@ -412,6 +412,65 @@ async def create_conversation():
         logger.error(f"Error creating conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/models/{model_id}/download")
+async def download_model(model_id: str):
+    """Download a model to the Railway server"""
+    try:
+        # Model download URLs
+        model_urls = {
+            "ethos-3b": "https://huggingface.co/TheBloke/Llama-2-3B-Chat-GGUF/resolve/main/llama-2-3b-chat.Q4_K_M.gguf",
+            "ethos-7b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGUF/resolve/main/llama-2-7b-chat.Q4_K_M.gguf",
+            "ethos-70b": "https://huggingface.co/TheBloke/Llama-2-70B-Chat-GGUF/resolve/main/llama-2-70b-chat.Q4_K_M.gguf"
+        }
+        
+        if model_id not in model_urls:
+            raise HTTPException(status_code=400, detail=f"Model {model_id} not found")
+        
+        url = model_urls[model_id]
+        model_path = f"/tmp/{model_id}.gguf"
+        
+        logger.info(f"Starting download of {model_id} from {url}")
+        
+        # Download the model file
+        import requests
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        
+        with open(model_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        logger.info(f"Successfully downloaded {model_id} to {model_path}")
+        
+        response_data = {
+            "status": "success",
+            "message": f"Model {model_id} downloaded successfully",
+            "model_id": model_id,
+            "file_path": model_path,
+            "file_size": os.path.getsize(model_path)
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error downloading model {model_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/download-model")
+async def download_model_endpoint():
+    """Legacy endpoint for model downloads"""
+    try:
+        # This endpoint accepts POST with model and url in body
+        return {"message": "Use /api/models/{model_id}/download instead"}
+    except Exception as e:
+        logger.error(f"Error in download endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Global error handler
 @app.exception_handler(Exception)
 async def global_exception_handler(request, exc):
