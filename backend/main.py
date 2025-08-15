@@ -204,16 +204,27 @@ I'm designed for quick, helpful answers to everyday questions. What would you li
     if "president" in message_lower:
         return "As of 2024, Joe Biden is the President of the United States. He was inaugurated on January 20, 2021, and is serving his first term."
     
-    # Handle math questions
-    if any(word in message_lower for word in ["what is", "calculate", "math", "plus", "minus", "times", "divided", "+", "-", "*", "/"]):
-        if "2+2" in message_lower or "2 + 2" in message_lower:
-            return "2 + 2 = 4"
-        elif "5+5" in message_lower or "5 + 5" in message_lower:
-            return "5 + 5 = 10"
-        elif "10+10" in message_lower or "10 + 10" in message_lower:
-            return "10 + 10 = 20"
-        else:
-            return "I can help with basic math calculations. What specific math problem do you need help with?"
+    # Handle specific geography questions first
+    if "capital" in message_lower and "usa" in message_lower:
+        return "The capital of the United States is Washington, D.C."
+    elif "capital" in message_lower and "france" in message_lower:
+        return "The capital of France is Paris."
+    elif "capital" in message_lower and "japan" in message_lower:
+        return "The capital of Japan is Tokyo."
+    
+    # Handle specific population questions
+    if "population" in message_lower and "usa" in message_lower:
+        return "The United States has a population of approximately 331 million people (as of 2024)."
+    elif "population" in message_lower and "world" in message_lower:
+        return "The world population is approximately 8 billion people (as of 2024)."
+    
+    # Handle specific math questions
+    if "2+2" in message_lower or "2 + 2" in message_lower:
+        return "2 + 2 = 4"
+    elif "5+5" in message_lower or "5 + 5" in message_lower:
+        return "5 + 5 = 10"
+    elif "10+10" in message_lower or "10 + 10" in message_lower:
+        return "10 + 10 = 20"
     
     # Handle weather questions
     if "weather" in message_lower:
@@ -227,21 +238,15 @@ I'm designed for quick, helpful answers to everyday questions. What would you li
     if "news" in message_lower:
         return "I can help you understand current events and provide context, but for the most up-to-date news, I'd recommend checking reliable news sources."
     
+    # Handle general math questions (after specific ones)
+    if any(word in message_lower for word in ["calculate", "math", "plus", "minus", "times", "divided", "+", "-", "*", "/"]):
+        return "I can help with basic math calculations. What specific math problem do you need help with?"
+    
     # Handle general questions - give actual answers
     if "?" in message:
         # For questions, provide helpful information based on the topic
-        if "calculator" in message_lower or "math" in message_lower or "calculate" in message_lower:
+        if "calculator" in message_lower or "math" in message_lower:
             return "I can help you with mathematical concepts, formulas, and problem-solving strategies. What specific math question do you have?"
-        elif "capital" in message_lower and "usa" in message_lower:
-            return "The capital of the United States is Washington, D.C."
-        elif "capital" in message_lower and "france" in message_lower:
-            return "The capital of France is Paris."
-        elif "capital" in message_lower and "japan" in message_lower:
-            return "The capital of Japan is Tokyo."
-        elif "population" in message_lower and "usa" in message_lower:
-            return "The United States has a population of approximately 331 million people (as of 2024)."
-        elif "population" in message_lower and "world" in message_lower:
-            return "The world population is approximately 8 billion people (as of 2024)."
         else:
             return f"I'd be happy to help you with '{message}'. Could you provide more specific details about what you'd like to know?"
     
