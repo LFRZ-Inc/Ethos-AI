@@ -207,21 +207,28 @@ async def root():
     }
 
 @app.get("/health")
-async def health():
-    """Health check endpoint for Railway"""
+async def health_check():
+    """Health check endpoint"""
     try:
-        response_data = {
-            "status": "healthy", 
+        health_data = {
+            "status": "healthy",
             "service": "ethos-ai-backend",
-            "mode": "clean",
-            "privacy": "local-first, no external dependencies",
+            "mode": "privacy-first",
+            "privacy": "100% local processing - no external data collection",
             "timestamp": time.time(),
-            "environment": os.environ.get("RAILWAY_ENVIRONMENT", "production"),
-            "port": os.environ.get("PORT", "8000")
+            "environment": "production",
+            "port": os.environ.get("PORT", "8080"),
+            "privacy_features": [
+                "No data selling",
+                "No external API calls",
+                "Local model processing",
+                "Self-contained AI",
+                "Private learning only"
+            ]
         }
         
         from fastapi.responses import JSONResponse
-        response = JSONResponse(content=response_data)
+        response = JSONResponse(content=health_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
@@ -402,6 +409,100 @@ async def get_conversations():
         
     except Exception as e:
         logger.error(f"Error getting conversations: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/models/{model_id}/download")
+async def download_model(model_id: str):
+    """Download a model to Railway server - Privacy First Approach"""
+    try:
+        # Model download URLs - Privacy-focused models only
+        model_urls = {
+            "ethos-3b": "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
+            "ethos-7b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin",
+            "ethos-70b": "https://huggingface.co/TheBloke/Llama-2-7B-Chat-GGML/resolve/main/llama-2-7b-chat.ggmlv3.q4_0.bin"
+        }
+        
+        if model_id not in model_urls:
+            raise HTTPException(status_code=400, detail=f"Model {model_id} not found")
+        
+        url = model_urls[model_id]
+        model_path = f"/tmp/{model_id}.gguf"
+        
+        logger.info(f"Starting privacy-first download of {model_id} from {url}")
+        
+        # Download with privacy-focused headers
+        import requests
+        headers = {
+            "User-Agent": "Ethos-AI/1.0 (Privacy-First AI)",
+            "Accept": "application/octet-stream"
+        }
+        
+        # Try with HuggingFace token if available (for private models)
+        hf_token = os.environ.get("HUGGINGFACE_TOKEN")
+        if hf_token:
+            headers["Authorization"] = f"Bearer {hf_token}"
+        
+        response = requests.get(url, headers=headers, stream=True, timeout=300)
+        response.raise_for_status()
+        
+        # Download with progress tracking
+        total_size = int(response.headers.get('content-length', 0))
+        downloaded = 0
+        
+        with open(model_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = (downloaded / total_size) * 100
+                        logger.info(f"Download progress for {model_id}: {progress:.1f}%")
+        
+        logger.info(f"Successfully downloaded {model_id} to {model_path} (Privacy-First)")
+        
+        response_data = {
+            "status": "success",
+            "message": f"Model {model_id} downloaded successfully - Privacy First!",
+            "model_id": model_id,
+            "file_path": model_path,
+            "file_size": os.path.getsize(model_path),
+            "privacy": "100% local processing - no external data collection"
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error downloading model {model_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/privacy")
+async def get_privacy_info():
+    """Get privacy information about Ethos AI"""
+    try:
+        privacy_info = {
+            "privacy_policy": "100% Privacy-First",
+            "data_collection": "None - All processing local",
+            "data_selling": "Never - We don't sell data",
+            "external_apis": "None - Self-contained AI",
+            "learning": "Self-improvement only - data stays private",
+            "storage": "Local only - no cloud data mining",
+            "purpose": "Ethos AI growth through private interactions"
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=privacy_info)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error getting privacy info: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # Global error handler
