@@ -251,6 +251,16 @@ async def root():
         "timestamp": time.time()
     }
 
+@app.get("/test")
+async def test_endpoint():
+    """Test endpoint to verify backend is working"""
+    return {
+        "status": "ok",
+        "message": "Backend is working",
+        "timestamp": time.time(),
+        "cors_enabled": True
+    }
+
 @app.get("/health")
 async def health():
     """Health check endpoint for Railway"""
@@ -271,6 +281,17 @@ async def health():
 async def chat(message: ChatMessage):
     """Chat endpoint with local AI response"""
     try:
+        # Debug logging
+        logger.info(f"Received chat request: {message}")
+        
+        # Get the message content
+        try:
+            content = message.get_content()
+            logger.info(f"Message content: {content}")
+        except ValueError as e:
+            logger.error(f"Message content error: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
+        
         # Get the model to use
         model_id = message.model_override or "ethos-general"
         model = LOCAL_MODELS.get(model_id)
@@ -286,7 +307,7 @@ async def chat(message: ChatMessage):
             )
         
         # Generate local AI response
-        ai_response = generate_local_response(message.get_content(), model_id)
+        ai_response = generate_local_response(content, model_id)
         
         # Create conversation if needed
         conv_id = message.conversation_id
@@ -296,7 +317,7 @@ async def chat(message: ChatMessage):
             conv_id = f"conv_{conversation_counter}"
             conversations[conv_id] = {
                 "id": conv_id,
-                "title": message.get_content()[:50] + "..." if len(message.get_content()) > 50 else message.get_content(),
+                "title": content[:50] + "..." if len(content) > 50 else content,
                 "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "updated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
                 "message_count": 0
@@ -307,7 +328,7 @@ async def chat(message: ChatMessage):
             messages[conv_id] = []
         
         messages[conv_id].append({
-            "user": message.get_content(),
+            "user": content,
             "assistant": ai_response,
             "model_used": model_id,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
