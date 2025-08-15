@@ -13,5 +13,13 @@ aiofiles==23.2.0
 pyyaml==6.0.0
 python-dotenv==1.0.0
 
+# Local AI Model Dependencies
+torch==2.1.0
+transformers==4.35.0
+accelerate==0.24.0
+bitsandbytes==0.41.0
+sentencepiece==0.1.99
+protobuf==4.24.4
+
 # Production server
 gunicorn==21.2.0 
