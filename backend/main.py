@@ -159,20 +159,60 @@ LOCAL_MODELS = {
 }
 
 def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
-    """Get response from lightweight AI system - Railway compatible"""
+    """Get response from local Ollama models - Real AI responses"""
+    try:
+        # Map Ethos model names to actual Ollama models
+        model_mapping = {
+            "ethos-light": "llama2:3b",  # Use a smaller model for light responses
+            "ethos-code": "codellama:7b",  # Use CodeLlama for programming
+            "ethos-pro": "gpt-oss:20b",  # Use the 20B model for advanced responses
+            "ethos-creative": "llama2:7b"  # Use 7B for creative tasks
+        }
+        
+        # Get the actual Ollama model name
+        ollama_model = model_mapping.get(model_id.lower(), "llama2:7b")
+        
+        # Connect to local Ollama instance
+        import requests
+        ollama_url = "http://localhost:11434/api/generate"
+        
+        payload = {
+            "model": ollama_model,
+            "prompt": message,
+            "stream": False
+        }
+        
+        # Make request to Ollama
+        response = requests.post(ollama_url, json=payload, timeout=30)
+        
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("response", "I'm sorry, I couldn't generate a response.")
+        else:
+            # Fallback to hardcoded responses if Ollama is not available
+            logger.warning(f"Ollama request failed: {response.status_code}")
+            return get_fallback_response(message, model_id)
+            
+    except requests.exceptions.ConnectionError:
+        # Ollama is not running or not accessible
+        logger.warning("Ollama not accessible, using fallback responses")
+        return get_fallback_response(message, model_id)
+    except Exception as e:
+        logger.error(f"Error getting Ollama response: {e}")
+        return get_fallback_response(message, model_id)
+
+def get_fallback_response(message: str, model_id: str) -> str:
+    """Fallback responses when Ollama is not available"""
     message_lower = message.lower()
     
-    # Normalize model_id to lowercase for case-insensitive matching
-    model_id_lower = model_id.lower()
-    
-    # Lightweight AI responses based on model type and message content
-    if model_id_lower == "ethos-light":
+    # Use the existing hardcoded responses as fallback
+    if model_id.lower() == "ethos-light":
         return get_ethos_light_response(message, message_lower)
-    elif model_id_lower == "ethos-code":
+    elif model_id.lower() == "ethos-code":
         return get_ethos_code_response(message, message_lower)
-    elif model_id_lower == "ethos-pro":
+    elif model_id.lower() == "ethos-pro":
         return get_ethos_pro_response(message, message_lower)
-    elif model_id_lower == "ethos-creative":
+    elif model_id.lower() == "ethos-creative":
         return get_ethos_creative_response(message, message_lower)
     else:
         return get_ethos_light_response(message, message_lower)
