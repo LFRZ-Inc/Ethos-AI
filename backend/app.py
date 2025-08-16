@@ -53,6 +53,11 @@ class ChatMessage(BaseModel):
 async def root():
     return {"message": "Ethos AI Backend is running!", "status": "healthy"}
 
+@app.get("/test")
+async def test():
+    """Simple test endpoint"""
+    return {"test": "working", "timestamp": time.time()}
+
 @app.get("/health")
 async def health_check():
     health_data = {
@@ -73,68 +78,120 @@ async def health_check():
 @app.get("/api/models")
 async def get_models():
     """Get available models - hardcoded for stability"""
-    response_data = {
-        "models": [
-            {
-                "id": "ethos-light",
-                "name": "Ethos Light",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "llama3.2:3b"
-            },
-            {
-                "id": "ethos-code",
-                "name": "Ethos Code",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "codellama:7b"
-            },
-            {
-                "id": "ethos-pro",
-                "name": "Ethos Pro",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "gpt-oss:20b"
-            },
-            {
-                "id": "ethos-creative",
-                "name": "Ethos Creative",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "llama3.1:70b"
-            }
-        ],
-        "total": 4,
-        "status": "available",
-        "ollama_available": True,
-        "ollama_models": ["llama3.2:3b", "codellama:7b", "gpt-oss:20b", "llama3.1:70b"]
-    }
-    
-    from fastapi.responses import JSONResponse
-    response = JSONResponse(content=response_data)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+    try:
+        response_data = {
+            "models": [
+                {
+                    "id": "ethos-light",
+                    "name": "Ethos Light",
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": True,
+                    "status": "available",
+                    "ollama_model": "llama3.2:3b"
+                },
+                {
+                    "id": "ethos-code",
+                    "name": "Ethos Code",
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": True,
+                    "status": "available",
+                    "ollama_model": "codellama:7b"
+                },
+                {
+                    "id": "ethos-pro",
+                    "name": "Ethos Pro",
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": True,
+                    "status": "available",
+                    "ollama_model": "gpt-oss:20b"
+                },
+                {
+                    "id": "ethos-creative",
+                    "name": "Ethos Creative",
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": True,
+                    "status": "available",
+                    "ollama_model": "llama3.1:70b"
+                }
+            ],
+            "total": 4,
+            "status": "available",
+            "ollama_available": True,
+            "ollama_models": ["llama3.2:3b", "codellama:7b", "gpt-oss:20b", "llama3.1:70b"]
+        }
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    except Exception as e:
+        logger.error(f"Error in get_models: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/models/status")
 async def get_model_status():
     """Get model system status - hardcoded for stability"""
-    status_data = {
-        "available": True,
-        "system_status": {
-            "total_models": 4,
-            "healthy_models": 4,
-            "available_models": ["ethos-light", "ethos-code", "ethos-pro", "ethos-creative"],
-            "system_status": "available",
+    try:
+        status_data = {
+            "available": True,
+            "system_status": {
+                "total_models": 4,
+                "healthy_models": 4,
+                "available_models": ["ethos-light", "ethos-code", "ethos-pro", "ethos-creative"],
+                "system_status": "available",
+                "models": {
+                    "ethos-light": {
+                        "model_id": "ethos-light",
+                        "model_name": "Ethos Light",
+                        "is_loaded": True,
+                        "device": "local",
+                        "cuda_available": False,
+                        "load_time": 0.1,
+                        "last_used": time.time(),
+                        "error_count": 0,
+                        "avg_response_time": 1.0
+                    },
+                    "ethos-code": {
+                        "model_id": "ethos-code",
+                        "model_name": "Ethos Code",
+                        "is_loaded": True,
+                        "device": "local",
+                        "cuda_available": False,
+                        "load_time": 0.1,
+                        "last_used": time.time(),
+                        "error_count": 0,
+                        "avg_response_time": 1.0
+                    },
+                    "ethos-pro": {
+                        "model_id": "ethos-pro",
+                        "model_name": "Ethos Pro",
+                        "is_loaded": True,
+                        "device": "local",
+                        "cuda_available": False,
+                        "load_time": 0.1,
+                        "last_used": time.time(),
+                        "error_count": 0,
+                        "avg_response_time": 1.0
+                    },
+                    "ethos-creative": {
+                        "model_id": "ethos-creative",
+                        "model_name": "Ethos Creative",
+                        "is_loaded": True,
+                        "device": "local",
+                        "cuda_available": False,
+                        "load_time": 0.1,
+                        "last_used": time.time(),
+                        "error_count": 0,
+                        "avg_response_time": 1.0
+                    }
+                }
+            },
             "models": {
                 "ethos-light": {
                     "model_id": "ethos-light",
@@ -181,61 +238,17 @@ async def get_model_status():
                     "avg_response_time": 1.0
                 }
             }
-        },
-        "models": {
-            "ethos-light": {
-                "model_id": "ethos-light",
-                "model_name": "Ethos Light",
-                "is_loaded": True,
-                "device": "local",
-                "cuda_available": False,
-                "load_time": 0.1,
-                "last_used": time.time(),
-                "error_count": 0,
-                "avg_response_time": 1.0
-            },
-            "ethos-code": {
-                "model_id": "ethos-code",
-                "model_name": "Ethos Code",
-                "is_loaded": True,
-                "device": "local",
-                "cuda_available": False,
-                "load_time": 0.1,
-                "last_used": time.time(),
-                "error_count": 0,
-                "avg_response_time": 1.0
-            },
-            "ethos-pro": {
-                "model_id": "ethos-pro",
-                "model_name": "Ethos Pro",
-                "is_loaded": True,
-                "device": "local",
-                "cuda_available": False,
-                "load_time": 0.1,
-                "last_used": time.time(),
-                "error_count": 0,
-                "avg_response_time": 1.0
-            },
-            "ethos-creative": {
-                "model_id": "ethos-creative",
-                "model_name": "Ethos Creative",
-                "is_loaded": True,
-                "device": "local",
-                "cuda_available": False,
-                "load_time": 0.1,
-                "last_used": time.time(),
-                "error_count": 0,
-                "avg_response_time": 1.0
-            }
         }
-    }
-    
-    from fastapi.responses import JSONResponse
-    response = JSONResponse(content=status_data)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+        
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=status_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+    except Exception as e:
+        logger.error(f"Error in get_model_status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/chat")
 async def chat(message: ChatMessage):
