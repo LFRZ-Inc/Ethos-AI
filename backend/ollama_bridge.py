@@ -64,11 +64,20 @@ class OllamaBridge:
             }
             
             logger.info(f"Requesting response from {ollama_model}")
+            
+            # Use longer timeout for larger models
+            if "20b" in ollama_model or "70b" in ollama_model:
+                timeout = 180  # 3 minutes for large models
+            elif "7b" in ollama_model:
+                timeout = 120  # 2 minutes for medium models
+            else:
+                timeout = 60   # 1 minute for small models
+                
             response = requests.post(
                 f"{self.ollama_url}/api/generate", 
                 json=payload, 
                 headers=self.headers,
-                timeout=60
+                timeout=timeout
             )
             
             if response.status_code == 200:

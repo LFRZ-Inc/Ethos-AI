@@ -578,7 +578,8 @@ async def chat(message: ChatMessage):
             "content": response_content,
             "model_used": model_id,
             "timestamp": datetime.now().isoformat(),
-            "privacy": "100% local processing"
+            "privacy": "100% local processing",
+            "processing_time": "varies by model size"
         }
         
         from fastapi.responses import JSONResponse
