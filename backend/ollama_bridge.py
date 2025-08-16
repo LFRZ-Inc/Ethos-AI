@@ -10,8 +10,8 @@ class OllamaBridge:
     """Bridge to connect cloud server to local Ollama models"""
     
     def __init__(self, ollama_url: str = None):
-        # Use the ngrok tunnel URL
-        self.ollama_url = ollama_url or "https://604e179881c8.ngrok-free.app"
+        # Use the localtunnel URL - this should work better with Railway
+        self.ollama_url = ollama_url or "https://ethos-ollama.loca.lt"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
@@ -19,9 +19,8 @@ class OllamaBridge:
             "ethos-creative": "llama3.1:70b"
         }
         
-        # Headers to bypass ngrok warning
+        # Headers for requests
         self.headers = {
-            "ngrok-skip-browser-warning": "true",
             "User-Agent": "Ethos-AI-Cloud/1.0"
         }
         
@@ -109,17 +108,6 @@ class OllamaBridge:
                         "ollama_model": ollama_model,
                         "enabled": True,
                         "status": "available"
-                    })
-                else:
-                    # Add fallback models that are always available
-                    models.append({
-                        "id": ethos_id,
-                        "name": f"Ethos {ethos_id.split('-')[1].title()}",
-                        "type": "hybrid",
-                        "provider": "ethos",
-                        "ollama_model": ollama_model,
-                        "enabled": True,
-                        "status": "fallback"
                     })
             
             return {
