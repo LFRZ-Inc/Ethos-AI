@@ -43,9 +43,10 @@ app.add_middleware(
         "http://127.0.0.1:1420"
     ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=86400,
 )
 
 # Pydantic models
@@ -177,7 +178,7 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
             logger.warning("Ollama not available, using fallback responses")
             return get_fallback_response(message, model_id)
             
-        except Exception as e:
+    except Exception as e:
         logger.error(f"Error getting Ollama response: {e}")
         return get_fallback_response(message, model_id)
 
