@@ -53,8 +53,8 @@ class ChatMessage(BaseModel):
 # Ollama Bridge - Direct implementation
 class OllamaBridge:
     def __init__(self):
-        # Use localtunnel URL for cloud access
-        self.ollama_url = "https://ethos-ollama.loca.lt"
+        # Use the new localtunnel URL that was just generated
+        self.ollama_url = "https://breezy-fireant-86.loca.lt"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
