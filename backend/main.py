@@ -177,7 +177,7 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
             logger.warning("Ollama not available, using fallback responses")
             return get_fallback_response(message, model_id)
             
-    except Exception as e:
+        except Exception as e:
         logger.error(f"Error getting Ollama response: {e}")
         return get_fallback_response(message, model_id)
 
@@ -488,7 +488,7 @@ async def get_model_status():
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
-        
+            
     except Exception as e:
         logger.error(f"Error getting model status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
