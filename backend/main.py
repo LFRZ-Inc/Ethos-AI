@@ -181,17 +181,17 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
             if ai_response:
                 return ai_response
             else:
-                # Fallback to hardcoded responses if Ollama is not available
-                logger.warning("Ollama not available, using fallback responses")
-                return get_fallback_response(message, model_id)
+                # Return error if Ollama is not available
+                logger.error("Ollama not available - no response generated")
+                return "Error: Ollama models are not available. Please check your local Ollama setup and tunnel connection."
                 
         except Exception as e:
             logger.error(f"Error getting Ollama response: {e}")
-            return get_fallback_response(message, model_id)
+            return f"Error: Failed to get response from Ollama. {str(e)}"
     else:
-        # Use fallback responses if Ollama bridge is not available
-        logger.info("Using fallback responses - Ollama bridge not available")
-        return get_fallback_response(message, model_id)
+        # Return error if Ollama bridge is not available
+        logger.error("Ollama bridge not available")
+        return "Error: Ollama bridge is not available. Please check your setup."
 
 def get_fallback_response(message: str, model_id: str) -> str:
     """Fallback responses when Ollama is not available"""
@@ -448,44 +448,44 @@ async def get_models():
                 "ollama_models": model_info.get("ollama_models", [])
             }
         else:
-            # Fallback models when Ollama bridge is not available
+            # Models unavailable when Ollama bridge is not available
             response_data = {
                 "models": [
                     {
                         "id": "ethos-light",
                         "name": "Ethos Light",
                         "type": "local",
-                        "provider": "fallback",
-                        "enabled": True,
-                        "status": "available"
+                        "provider": "ollama",
+                        "enabled": False,
+                        "status": "unavailable"
                     },
                     {
                         "id": "ethos-code",
                         "name": "Ethos Code",
                         "type": "local",
-                        "provider": "fallback",
-                        "enabled": True,
-                        "status": "available"
+                        "provider": "ollama",
+                        "enabled": False,
+                        "status": "unavailable"
                     },
                     {
                         "id": "ethos-pro",
                         "name": "Ethos Pro",
                         "type": "local",
-                        "provider": "fallback",
-                        "enabled": True,
-                        "status": "available"
+                        "provider": "ollama",
+                        "enabled": False,
+                        "status": "unavailable"
                     },
                     {
                         "id": "ethos-creative",
                         "name": "Ethos Creative",
                         "type": "local",
-                        "provider": "fallback",
-                        "enabled": True,
-                        "status": "available"
+                        "provider": "ollama",
+                        "enabled": False,
+                        "status": "unavailable"
                     }
                 ],
-                "total": 4,
-                "status": "available",
+                "total": 0,
+                "status": "unavailable",
                 "ollama_available": False,
                 "ollama_models": []
             }
@@ -538,107 +538,17 @@ async def get_model_status():
                 }
                 status_data["models"][model_id] = status_data["system_status"]["models"][model_id]
         else:
-            # Fallback status when Ollama bridge is not available
+            # Status unavailable when Ollama bridge is not available
             status_data = {
-                "available": True,
+                "available": False,
                 "system_status": {
-                    "total_models": 4,
-                    "healthy_models": 4,
-                    "available_models": ["ethos-light", "ethos-code", "ethos-pro", "ethos-creative"],
-                    "system_status": "available",
-                    "models": {
-                        "ethos-light": {
-                            "model_id": "ethos-light",
-                            "model_name": "Ethos Light",
-                            "is_loaded": True,
-                            "device": "cpu",
-                            "cuda_available": False,
-                            "load_time": 0.1,
-                            "last_used": time.time(),
-                            "error_count": 0,
-                            "avg_response_time": 1.0
-                        },
-                        "ethos-code": {
-                            "model_id": "ethos-code",
-                            "model_name": "Ethos Code",
-                            "is_loaded": True,
-                            "device": "cpu",
-                            "cuda_available": False,
-                            "load_time": 0.1,
-                            "last_used": time.time(),
-                            "error_count": 0,
-                            "avg_response_time": 1.0
-                        },
-                        "ethos-pro": {
-                            "model_id": "ethos-pro",
-                            "model_name": "Ethos Pro",
-                            "is_loaded": True,
-                            "device": "cpu",
-                            "cuda_available": False,
-                            "load_time": 0.1,
-                            "last_used": time.time(),
-                            "error_count": 0,
-                            "avg_response_time": 1.0
-                        },
-                        "ethos-creative": {
-                            "model_id": "ethos-creative",
-                            "model_name": "Ethos Creative",
-                            "is_loaded": True,
-                            "device": "cpu",
-                            "cuda_available": False,
-                            "load_time": 0.1,
-                            "last_used": time.time(),
-                            "error_count": 0,
-                            "avg_response_time": 1.0
-                        }
-                    }
+                    "total_models": 0,
+                    "healthy_models": 0,
+                    "available_models": [],
+                    "system_status": "unavailable",
+                    "models": {}
                 },
-                "models": {
-                    "ethos-light": {
-                        "model_id": "ethos-light",
-                        "model_name": "Ethos Light",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 1.0
-                    },
-                    "ethos-code": {
-                        "model_id": "ethos-code",
-                        "model_name": "Ethos Code",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 1.0
-                    },
-                    "ethos-pro": {
-                        "model_id": "ethos-pro",
-                        "model_name": "Ethos Pro",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 1.0
-                    },
-                    "ethos-creative": {
-                        "model_id": "ethos-creative",
-                        "model_name": "Ethos Creative",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 1.0
-                    }
-                }
+                "models": {}
             }
         
         from fastapi.responses import JSONResponse
