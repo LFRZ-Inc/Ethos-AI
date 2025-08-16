@@ -30,16 +30,16 @@ class ChatRequest(BaseModel):
 def get_ollama_response(message: str, model_id: str = "ethos-light") -> str:
     """Get response from local Ollama models"""
     try:
-        # Map Ethos model names to actual Ollama models
+        # Map Ethos model names to actual Ollama models (using user's installed models)
         model_mapping = {
-            "ethos-light": "llama2:3b",
-            "ethos-code": "codellama:7b", 
-            "ethos-pro": "gpt-oss:20b",  # Your 20B model
-            "ethos-creative": "llama2:7b"
+            "ethos-light": "llama3.2:3b",  # Use the 3B model for light responses
+            "ethos-code": "codellama:7b",  # Use CodeLlama for programming
+            "ethos-pro": "gpt-oss:20b",  # Use the 20B model for advanced responses
+            "ethos-creative": "llama3.1:70b"  # Use the 70B model for creative tasks
         }
         
         # Get the actual Ollama model name
-        ollama_model = model_mapping.get(model_id.lower(), "llama2:7b")
+        ollama_model = model_mapping.get(model_id.lower(), "llama3.2:3b")
         
         # Connect to local Ollama instance
         ollama_url = "http://localhost:11434/api/generate"
@@ -115,7 +115,7 @@ async def get_models():
             models = []
             for model in ollama_models:
                 model_name = model.get("name", "")
-                if "llama2" in model_name.lower():
+                if "llama3.2" in model_name.lower():
                     models.append({
                         "id": "ethos-light",
                         "name": "Ethos Light",
@@ -139,6 +139,16 @@ async def get_models():
                     models.append({
                         "id": "ethos-pro",
                         "name": "Ethos Pro", 
+                        "type": "local",
+                        "provider": "ollama",
+                        "ollama_model": model_name,
+                        "enabled": True,
+                        "status": "available"
+                    })
+                elif "llama3.1" in model_name.lower():
+                    models.append({
+                        "id": "ethos-creative",
+                        "name": "Ethos Creative",
                         "type": "local",
                         "provider": "ollama",
                         "ollama_model": model_name,
