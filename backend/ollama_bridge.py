@@ -10,8 +10,8 @@ class OllamaBridge:
     """Bridge to connect cloud server to local Ollama models"""
     
     def __init__(self, ollama_url: str = None):
-        # Use the localtunnel URL - this should work better with Railway
-        self.ollama_url = ollama_url or "https://ethos-ollama.loca.lt"
+        # Use the working ngrok tunnel URL
+        self.ollama_url = ollama_url or "https://604e179881c8.ngrok-free.app"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
@@ -21,6 +21,7 @@ class OllamaBridge:
         
         # Headers for requests
         self.headers = {
+            "ngrok-skip-browser-warning": "true",
             "User-Agent": "Ethos-AI-Cloud/1.0"
         }
         
