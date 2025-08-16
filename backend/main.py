@@ -158,45 +158,25 @@ LOCAL_MODELS = {
     }
 }
 
+# Import the Ollama bridge
+from ollama_bridge import OllamaBridge
+
+# Initialize the bridge
+ollama_bridge = OllamaBridge()
+
 def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
-    """Get response from local Ollama models - Real AI responses"""
+    """Get response from local Ollama models via bridge"""
     try:
-        # Map Ethos model names to actual Ollama models
-        model_mapping = {
-            "ethos-light": "llama2:3b",  # Use a smaller model for light responses
-            "ethos-code": "codellama:7b",  # Use CodeLlama for programming
-            "ethos-pro": "gpt-oss:20b",  # Use the 20B model for advanced responses
-            "ethos-creative": "llama2:7b"  # Use 7B for creative tasks
-        }
+        # Try to get response from Ollama bridge
+        ai_response = ollama_bridge.generate_response(message, model_id)
         
-        # Get the actual Ollama model name
-        ollama_model = model_mapping.get(model_id.lower(), "llama2:7b")
-        
-        # Connect to local Ollama instance
-        import requests
-        ollama_url = "http://localhost:11434/api/generate"
-        
-        payload = {
-            "model": ollama_model,
-            "prompt": message,
-            "stream": False
-        }
-        
-        # Make request to Ollama
-        response = requests.post(ollama_url, json=payload, timeout=30)
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result.get("response", "I'm sorry, I couldn't generate a response.")
+        if ai_response:
+            return ai_response
         else:
             # Fallback to hardcoded responses if Ollama is not available
-            logger.warning(f"Ollama request failed: {response.status_code}")
+            logger.warning("Ollama not available, using fallback responses")
             return get_fallback_response(message, model_id)
             
-    except requests.exceptions.ConnectionError:
-        # Ollama is not running or not accessible
-        logger.warning("Ollama not accessible, using fallback responses")
-        return get_fallback_response(message, model_id)
     except Exception as e:
         logger.error(f"Error getting Ollama response: {e}")
         return get_fallback_response(message, model_id)
@@ -442,75 +422,17 @@ async def test_endpoint():
 
 @app.get("/api/models")
 async def get_models():
-    """Get available models"""
+    """Get available models from Ollama bridge"""
     try:
-        # Lightweight AI system is always available
-        models_available = True
-        
-        models = [
-            {
-                "id": "ethos-light",
-                "name": "Ethos Light",
-                "type": "local",
-                "provider": "ethos",
-                "capabilities": ["general_chat", "privacy_focused", "basic_assistance", "fast_responses"],
-                "enabled": True,
-                "status": "available",
-                "description": "Lightweight AI for quick responses and basic tasks",
-                "parameters": "3B",
-                "quantization": "4-bit",
-                "speed": "fast",
-                "capability": "basic"
-            },
-            {
-                "id": "ethos-code",
-                "name": "Ethos Code", 
-                "type": "local",
-                "provider": "ethos",
-                "capabilities": ["coding", "programming", "debugging", "code_review", "algorithm_design"],
-                "enabled": True,
-                "status": "available",
-                "description": "Specialized AI for coding and development tasks",
-                "parameters": "7B",
-                "quantization": "4-bit", 
-                "speed": "medium",
-                "capability": "coding"
-            },
-            {
-                "id": "ethos-pro",
-                "name": "Ethos Pro",
-                "type": "local", 
-                "provider": "ethos",
-                "capabilities": ["advanced_reasoning", "analysis", "research", "complex_tasks", "detailed_explanations"],
-                "enabled": True,
-                "status": "available",
-                "description": "Professional AI for complex analysis and detailed work",
-                "parameters": "70B",
-                "quantization": "4-bit",
-                "speed": "slow", 
-                "capability": "advanced"
-            },
-            {
-                "id": "ethos-creative",
-                "name": "Ethos Creative",
-                "type": "local",
-                "provider": "ethos", 
-                "capabilities": ["creative_writing", "content_creation", "storytelling", "artistic_tasks", "brainstorming"],
-                "enabled": True,
-                "status": "available",
-                "description": "Creative AI for writing, content creation, and artistic tasks",
-                "parameters": "7B",
-                "quantization": "4-bit",
-                "speed": "medium",
-                "capability": "creative"
-            }
-        ]
+        # Get model info from Ollama bridge
+        model_info = ollama_bridge.get_model_info()
         
         response_data = {
-            "models": models,
-            "total": len(models),
-            "status": "available",
-            "model_system": "lightweight-ai"
+            "models": model_info.get("models", []),
+            "total": model_info.get("total", 0),
+            "status": model_info.get("status", "unavailable"),
+            "ollama_available": model_info.get("ollama_available", False),
+            "ollama_models": model_info.get("ollama_models", [])
         }
         
         from fastapi.responses import JSONResponse
@@ -528,108 +450,37 @@ async def get_models():
 async def get_model_status():
     """Get model system status - Frontend compatible format"""
     try:
+        # Get model info from Ollama bridge
+        model_info = ollama_bridge.get_model_info()
+        
         # Create the exact format the frontend expects
         status_data = {
-            "available": True,  # This is what the frontend checks first
+            "available": model_info.get("ollama_available", False),
             "system_status": {
-                "total_models": 4,
-                "healthy_models": 4,
-                "available_models": ["ethos-light", "ethos-code", "ethos-pro", "ethos-creative"],
-                "system_status": "available",
-                "models": {
-                    "ethos-light": {
-                        "model_id": "ethos-light",
-                        "model_name": "Ethos Light",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 0.5
-                    },
-                    "ethos-code": {
-                        "model_id": "ethos-code",
-                        "model_name": "Ethos Code",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 0.8
-                    },
-                    "ethos-pro": {
-                        "model_id": "ethos-pro",
-                        "model_name": "Ethos Pro",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 1.2
-                    },
-                    "ethos-creative": {
-                        "model_id": "ethos-creative",
-                        "model_name": "Ethos Creative",
-                        "is_loaded": True,
-                        "device": "cpu",
-                        "cuda_available": False,
-                        "load_time": 0.1,
-                        "last_used": time.time(),
-                        "error_count": 0,
-                        "avg_response_time": 0.8
-                    }
-                }
+                "total_models": model_info.get("total", 0),
+                "healthy_models": model_info.get("total", 0),
+                "available_models": [m.get("id") for m in model_info.get("models", [])],
+                "system_status": "available" if model_info.get("ollama_available") else "unavailable",
+                "models": {}
             },
-            "models": {
-                "ethos-light": {
-                    "model_id": "ethos-light",
-                    "model_name": "Ethos Light",
-                    "is_loaded": True,
-                    "device": "cpu",
-                    "cuda_available": False,
-                    "load_time": 0.1,
-                    "last_used": time.time(),
-                    "error_count": 0,
-                    "avg_response_time": 0.5
-                },
-                "ethos-code": {
-                    "model_id": "ethos-code",
-                    "model_name": "Ethos Code",
-                    "is_loaded": True,
-                    "device": "cpu",
-                    "cuda_available": False,
-                    "load_time": 0.1,
-                    "last_used": time.time(),
-                    "error_count": 0,
-                    "avg_response_time": 0.8
-                },
-                "ethos-pro": {
-                    "model_id": "ethos-pro",
-                    "model_name": "Ethos Pro",
-                    "is_loaded": True,
-                    "device": "cpu",
-                    "cuda_available": False,
-                    "load_time": 0.1,
-                    "last_used": time.time(),
-                    "error_count": 0,
-                    "avg_response_time": 1.2
-                },
-                "ethos-creative": {
-                    "model_id": "ethos-creative",
-                    "model_name": "Ethos Creative",
-                    "is_loaded": True,
-                    "device": "cpu",
-                    "cuda_available": False,
-                    "load_time": 0.1,
-                    "last_used": time.time(),
-                    "error_count": 0,
-                    "avg_response_time": 0.8
-                }
-            }
+            "models": {}
         }
+        
+        # Add model details
+        for model in model_info.get("models", []):
+            model_id = model.get("id")
+            status_data["system_status"]["models"][model_id] = {
+                "model_id": model_id,
+                "model_name": model.get("name"),
+                "is_loaded": True,
+                "device": "cpu",
+                "cuda_available": False,
+                "load_time": 0.1,
+                "last_used": time.time(),
+                "error_count": 0,
+                "avg_response_time": 1.0
+            }
+            status_data["models"][model_id] = status_data["system_status"]["models"][model_id]
         
         from fastapi.responses import JSONResponse
         response = JSONResponse(content=status_data)
@@ -637,7 +488,7 @@ async def get_model_status():
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
-            
+        
     except Exception as e:
         logger.error(f"Error getting model status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
