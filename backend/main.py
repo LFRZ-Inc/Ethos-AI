@@ -178,7 +178,7 @@ def get_local_ai_response(message: str, model_id: str = "ethos-light") -> str:
             logger.warning("Ollama not available, using fallback responses")
             return get_fallback_response(message, model_id)
             
-        except Exception as e:
+    except Exception as e:
         logger.error(f"Error getting Ollama response: {e}")
         return get_fallback_response(message, model_id)
 
