@@ -96,13 +96,17 @@ class OllamaBridge:
             }
             
             # Use longer timeout for larger models
-            if "20b" in ollama_model or "70b" in ollama_model:
-                timeout = 180
+            if "70b" in ollama_model:
+                timeout = 300  # 5 minutes for 70B models
+            elif "20b" in ollama_model:
+                timeout = 180  # 3 minutes for 20B models
             elif "7b" in ollama_model:
-                timeout = 120
+                timeout = 120  # 2 minutes for 7B models
             else:
-                timeout = 60
+                timeout = 60   # 1 minute for 3B models
                 
+            logger.info(f"Requesting response from {ollama_model} with {timeout}s timeout")
+            
             response = requests.post(
                 f"{self.ollama_url}/api/generate", 
                 json=payload, 
@@ -112,10 +116,15 @@ class OllamaBridge:
             
             if response.status_code == 200:
                 result = response.json()
-                return result.get("response", "")
+                ai_response = result.get("response", "")
+                logger.info(f"Successfully got response from {ollama_model}")
+                return ai_response
             else:
                 logger.error(f"Ollama request failed: {response.status_code}")
                 return None
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout getting response from {ollama_model}")
+            return None
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return None
@@ -299,7 +308,7 @@ async def chat(message: ChatMessage):
             ai_response = ollama_bridge.generate_response(content, model_id)
             
             if ai_response:
-                return {
+                response_data = {
                     "content": ai_response,
                     "model_used": model_id,
                     "timestamp": datetime.now().isoformat(),
@@ -307,7 +316,7 @@ async def chat(message: ChatMessage):
                     "mode": "real-ai"
                 }
             else:
-                return {
+                response_data = {
                     "content": "Error: Could not get response from Ollama. Please check your local setup and tunnel connection.",
                     "model_used": model_id,
                     "timestamp": datetime.now().isoformat(),
@@ -315,7 +324,7 @@ async def chat(message: ChatMessage):
                     "mode": "error"
                 }
         else:
-            return {
+            response_data = {
                 "content": "Error: Ollama is not available. Please check your local Ollama setup and tunnel connection.",
                 "model_used": model_id,
                 "timestamp": datetime.now().isoformat(),
@@ -323,15 +332,31 @@ async def chat(message: ChatMessage):
                 "mode": "error"
             }
         
+        # Add explicit CORS headers to fix the CORS error
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=response_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
+        
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
-        return {
+        error_data = {
             "content": f"Error: {str(e)}",
             "model_used": model_id if 'model_id' in locals() else "unknown",
             "timestamp": datetime.now().isoformat(),
             "privacy": "100% local processing",
             "mode": "error"
         }
+        
+        # Add explicit CORS headers to error response too
+        from fastapi.responses import JSONResponse
+        response = JSONResponse(content=error_data)
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        return response
 
 @app.post("/api/conversations")
 async def create_conversation():
