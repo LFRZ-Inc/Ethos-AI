@@ -10,13 +10,19 @@ class OllamaBridge:
     """Bridge to connect cloud server to local Ollama models"""
     
     def __init__(self, ollama_url: str = None):
-        # Use tunnel URL if available, otherwise use provided URL
-        self.ollama_url = ollama_url or tunnel_manager.get_ollama_url()
+        # Use the ngrok tunnel URL
+        self.ollama_url = ollama_url or "https://604e179881c8.ngrok-free.app"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
             "ethos-pro": "gpt-oss:20b",
             "ethos-creative": "llama3.1:70b"
+        }
+        
+        # Headers to bypass ngrok warning
+        self.headers = {
+            "ngrok-skip-browser-warning": "true",
+            "User-Agent": "Ethos-AI-Cloud/1.0"
         }
         
         # Try to setup tunnel on initialization
@@ -27,7 +33,7 @@ class OllamaBridge:
     def is_available(self) -> bool:
         """Check if Ollama is available"""
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=5)
+            response = requests.get(f"{self.ollama_url}/api/tags", headers=self.headers, timeout=5)
             return response.status_code == 200
         except:
             return False
@@ -35,7 +41,7 @@ class OllamaBridge:
     def get_available_models(self) -> list:
         """Get list of available Ollama models"""
         try:
-            response = requests.get(f"{self.ollama_url}/api/tags", timeout=10)
+            response = requests.get(f"{self.ollama_url}/api/tags", headers=self.headers, timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 return [model.get("name") for model in data.get("models", [])]
@@ -67,6 +73,7 @@ class OllamaBridge:
             response = requests.post(
                 f"{self.ollama_url}/api/generate", 
                 json=payload, 
+                headers=self.headers,
                 timeout=60
             )
             
