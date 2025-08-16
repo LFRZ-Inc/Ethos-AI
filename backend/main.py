@@ -54,7 +54,7 @@ class ChatMessage(BaseModel):
 class OllamaBridge:
     def __init__(self):
         # Use the new localtunnel URL that was just generated
-        self.ollama_url = "https://breezy-fireant-86.loca.lt"
+        self.ollama_url = "https://plastic-vampirebat-50.loca.lt"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
