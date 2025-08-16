@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Ethos AI - Local AI Backend with Real Local Models
+Updated: 2025-08-16 - Fixed import issues and timeout handling
 """
 
 import os
