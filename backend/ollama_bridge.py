@@ -2,7 +2,6 @@ import requests
 import time
 import logging
 from typing import Optional, Dict, Any
-from tunnel_setup import tunnel_manager
 
 logger = logging.getLogger(__name__)
 
