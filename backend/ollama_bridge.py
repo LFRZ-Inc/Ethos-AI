@@ -10,8 +10,8 @@ class OllamaBridge:
     """Bridge to connect cloud server to local Ollama models"""
     
     def __init__(self, ollama_url: str = None):
-        # Use the working ngrok tunnel URL
-        self.ollama_url = ollama_url or "https://604e179881c8.ngrok-free.app"
+        # Use localtunnel - more reliable for cloud deployments
+        self.ollama_url = ollama_url or "https://ethos-ollama.loca.lt"
         self.model_mapping = {
             "ethos-light": "llama3.2:3b",
             "ethos-code": "codellama:7b", 
@@ -21,14 +21,8 @@ class OllamaBridge:
         
         # Headers for requests
         self.headers = {
-            "ngrok-skip-browser-warning": "true",
             "User-Agent": "Ethos-AI-Cloud/1.0"
         }
-        
-        # Try to setup tunnel on initialization
-        if not tunnel_manager.is_active:
-            tunnel_manager.setup_tunnel()
-            self.ollama_url = tunnel_manager.get_ollama_url()
     
     def is_available(self) -> bool:
         """Check if Ollama is available"""
