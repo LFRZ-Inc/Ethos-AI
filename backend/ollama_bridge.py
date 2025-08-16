@@ -110,6 +110,17 @@ class OllamaBridge:
                         "enabled": True,
                         "status": "available"
                     })
+                else:
+                    # Add fallback models that are always available
+                    models.append({
+                        "id": ethos_id,
+                        "name": f"Ethos {ethos_id.split('-')[1].title()}",
+                        "type": "hybrid",
+                        "provider": "ethos",
+                        "ollama_model": ollama_model,
+                        "enabled": True,
+                        "status": "fallback"
+                    })
             
             return {
                 "models": models,
