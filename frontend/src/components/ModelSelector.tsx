@@ -8,7 +8,10 @@ interface Model {
   name: string;
   type: string;
   status: string;
-  capabilities: string[];
+  capabilities?: string[];
+  ollama_model?: string;
+  provider?: string;
+  enabled?: boolean;
 }
 
 const ModelSelector: React.FC = () => {
@@ -108,7 +111,7 @@ const ModelSelector: React.FC = () => {
                       </div>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">
-                      {model.type} • {model.capabilities.join(', ')}
+                      {model.type} • {model.ollama_model || (model.capabilities ? model.capabilities.join(', ') : 'Local Model')}
                     </div>
                   </button>
                 ))}
