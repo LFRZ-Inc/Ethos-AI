@@ -147,6 +147,7 @@ class CloudAISystem:
     def __init__(self):
         self.models_ready = False
         self.available_models = []
+        self.downloading = False
         
     def initialize_models(self):
         """Initialize models on Railway"""
@@ -156,13 +157,20 @@ class CloudAISystem:
             logger.error("❌ Ollama not available")
             return False
             
+        if self.downloading:
+            logger.info("📥 Models are currently being downloaded...")
+            return False
+            
         if not MODELS_DOWNLOADED:
             logger.info("📥 Models not downloaded yet, starting download...")
+            self.downloading = True
             if download_models_to_railway():
                 self.models_ready = True
                 self.available_models = get_available_models()
+                self.downloading = False
                 return True
             else:
+                self.downloading = False
                 return False
         else:
             self.models_ready = True
@@ -188,12 +196,25 @@ class CloudAISystem:
             
             ollama_model = model_mapping.get(model_override, "llama3.2:3b")
             
-            # Call Ollama directly
-            payload = {
-                "model": ollama_model,
-                "prompt": user_message,
-                "stream": False
-            }
+            # Check if model is available
+            available_models = get_available_models()
+            if ollama_model not in available_models:
+                # Try to download the specific model
+                logger.info(f"📥 Model {ollama_model} not found, downloading...")
+                result = subprocess.run(
+                    ['ollama', 'pull', ollama_model],
+                    capture_output=True,
+                    text=True,
+                    timeout=1800  # 30 minutes
+                )
+                
+                if result.returncode != 0:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Failed to download model {ollama_model}: {result.stderr}"
+                    )
+                
+                logger.info(f"✅ {ollama_model} downloaded successfully")
             
             logger.info(f"🚀 Calling cloud model {ollama_model}")
             
