@@ -313,16 +313,39 @@ async def get_models_status():
             if "codellama:7b" in available_models:
                 enabled_count += 1
             
+            # Create models status object
+            models_status = {}
+            ethos_models = ["ethos-light", "ethos-code", "ethos-pro", "ethos-creative"]
+            
+            for ethos_id in ethos_models:
+                is_available = False
+                if ethos_id == "ethos-light" and "llama3.2:3b" in available_models:
+                    is_available = True
+                elif ethos_id == "ethos-code" and "codellama:7b" in available_models:
+                    is_available = True
+                
+                models_status[ethos_id] = {
+                    "model_id": ethos_id,
+                    "model_name": f"Ethos {ethos_id.split('-')[1].title()}",
+                    "is_loaded": is_available,
+                    "device": "cloud",
+                    "cuda_available": False,
+                    "load_time": 0.1,
+                    "last_used": time.time(),
+                    "error_count": 0,
+                    "avg_response_time": 1.0
+                }
+            
             status_data = {
                 "available": True,
-                "total_models": 4,  # Total Ethos models
-                "healthy_models": enabled_count,
-                "available_models": available_models,
-                "fusion_engine": True,
-                "ollama_available": True,
-                "message": f"Cloud Ethos Fusion Engine active with {enabled_count} models available",
-                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "programming", "debugging", "code_generation", "technical_analysis"],
-                "deployment": "cloud-only"
+                "system_status": {
+                    "total_models": 4,  # Total Ethos models
+                    "healthy_models": enabled_count,
+                    "available_models": [k for k, v in models_status.items() if v["is_loaded"]],
+                    "system_status": "available",
+                    "models": models_status
+                },
+                "models": models_status
             }
         except Exception as e:
             logger.error(f"Error getting model status: {e}")
@@ -340,14 +363,14 @@ def get_fallback_status():
     """Fallback status when fusion engine is not available"""
     return {
         "available": False,
-        "total_models": 0,
-        "healthy_models": 0,
-        "available_models": [],
-        "fusion_engine": False,
-        "ollama_available": check_ollama_available(),
-        "message": "Cloud fusion engine not available",
-        "capabilities": [],
-        "deployment": "cloud-only"
+        "system_status": {
+            "total_models": 0,
+            "healthy_models": 0,
+            "available_models": [],
+            "system_status": "unavailable",
+            "models": {}
+        },
+        "models": {}
     }
 
 @app.post("/api/chat")
