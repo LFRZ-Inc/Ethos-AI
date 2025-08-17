@@ -1,2 +1,2 @@
-# Install Ollama and run the web application
-web: bash railway_setup.sh && gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300
+# Run the web application (Ollama installation handled in main.py)
+web: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300

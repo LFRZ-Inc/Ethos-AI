@@ -14,21 +14,64 @@ import json
 import logging
 import time
 import uuid
+import subprocess
+import os
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import subprocess
-import os
-
-# Import the cloud fusion engine
-from cloud_fusion_engine import CloudEthosFusionEngine
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Install Ollama during startup if on Railway
+def install_ollama_on_railway():
+    """Install Ollama if running on Railway and not already installed"""
+    if os.getenv('RAILWAY_ENVIRONMENT'):
+        logger.info("🚂 Running on Railway - checking Ollama installation")
+        
+        # Check if Ollama is already installed
+        try:
+            result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info(f"✅ Ollama already installed: {result.stdout.strip()}")
+                return True
+        except:
+            pass
+        
+        # Install Ollama if not found
+        logger.info("📦 Installing Ollama on Railway...")
+        try:
+            install_result = subprocess.run(
+                "curl -fsSL https://ollama.ai/install.sh | sh",
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes timeout
+            )
+            
+            if install_result.returncode == 0:
+                logger.info("✅ Ollama installed successfully")
+                return True
+            else:
+                logger.error(f"❌ Ollama installation failed: {install_result.stderr}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error installing Ollama: {e}")
+            return False
+    else:
+        logger.info("💻 Running locally - skipping Ollama installation")
+        return True
+
+# Install Ollama during startup
+install_ollama_on_railway()
+
+# Import the cloud fusion engine
+from cloud_fusion_engine import CloudEthosFusionEngine
 
 # Initialize FastAPI app
 app = FastAPI(title="Ethos AI - Cloud Edition", version="3.0.0-CLOUD-ONLY")
