@@ -3,16 +3,23 @@
 
 echo "🚀 Railway Setup: Installing Ollama..."
 
-# Install Ollama
-curl -fsSL https://ollama.ai/install.sh | sh
-
-# Verify installation
+# Check if Ollama is already installed
 if command -v ollama &> /dev/null; then
-    echo "✅ Ollama installed successfully"
+    echo "✅ Ollama already installed"
     ollama --version
 else
-    echo "❌ Ollama installation failed"
-    exit 1
+    echo "📦 Installing Ollama..."
+    # Install Ollama
+    curl -fsSL https://ollama.ai/install.sh | sh
+    
+    # Verify installation
+    if command -v ollama &> /dev/null; then
+        echo "✅ Ollama installed successfully"
+        ollama --version
+    else
+        echo "❌ Ollama installation failed"
+        echo "⚠️ Continuing without Ollama..."
+    fi
 fi
 
 echo "🎉 Railway setup complete!"
