@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Cloud-Only Ethos AI Main Application
-Fully cloud-based - no local server needed!
+Hybrid Ethos AI Main Application
+Local models via tunnel + Cloud fallback
 FORCE REDEPLOY - Railway should pick up this change
 
-VERSION: 3.0.0-CLOUD-ONLY
-DEPLOYMENT: FORCE-REBUILD-REQUIRED
-OLLAMA-INSTALLATION: READY
+VERSION: 3.0.0-HYBRID
+DEPLOYMENT: HYBRID-SYSTEM-ACTIVE
+LOCAL-TUNNEL: https://calm-otter-38.loca.lt
 """
 
 import asyncio
@@ -75,7 +75,7 @@ install_ollama_on_railway()
 from cloud_fusion_engine import CloudEthosFusionEngine
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="3.0.0-CLOUD-ONLY")
+app = FastAPI(title="Ethos AI - Hybrid Edition", version="3.0.0-HYBRID")
 
 # Add CORS middleware
 app.add_middleware(
