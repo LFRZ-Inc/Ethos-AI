@@ -1,1 +1,5 @@
-web: gunicorn cloud_main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300
+# Install Ollama during deployment
+setup: bash railway_setup.sh
+
+# Run the web application
+web: gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 300
