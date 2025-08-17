@@ -215,6 +215,14 @@ class CloudAISystem:
                     detail="Models not ready. Please wait for download to complete."
                 )
         
+        # Check if we have any models available
+        available_models = get_available_models()
+        if not available_models:
+            raise HTTPException(
+                status_code=503,
+                detail="No models available. Please wait for models to download."
+            )
+        
         try:
             # Map Ethos models to local Ollama models
             model_mapping = {
@@ -421,6 +429,16 @@ def get_fallback_models():
         "deployment": "cloud-only"
     }
 
+@app.options("/api/chat")
+async def chat_options():
+    """Handle CORS preflight requests"""
+    response = JSONResponse(content={})
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
 @app.post("/api/chat")
 async def chat_endpoint(request: Request):
     """Chat endpoint"""
@@ -432,25 +450,44 @@ async def chat_endpoint(request: Request):
         if not user_message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
         
-        # Generate response using cloud AI
-        response_data = await cloud_ai.generate_response(user_message, model_override)
-        
-        # Add conversation tracking
-        response_data.update({
-            "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-            "timestamp": datetime.now().isoformat(),
-            "processing_time": 0.0,
-            "capabilities_used": ["cloud_model"],
-            "synthesis_reasoning": "Cloud AI model provided response based on cloud_model.",
-            "fusion_engine": False,
-            "deployment": "cloud-only",
-            "status": "success"
-        })
+        # Check if models are available
+        available_models = get_available_models()
+        if not available_models:
+            # Return a fallback response when models aren't ready
+            response_data = {
+                "message": "I'm currently setting up my AI models on the cloud. Please wait a moment and try again. The models are downloading and will be ready soon!",
+                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+                "timestamp": datetime.now().isoformat(),
+                "model_used": "fallback",
+                "confidence": 0.8,
+                "processing_time": 0.0,
+                "capabilities_used": ["fallback"],
+                "synthesis_reasoning": "Models are downloading to Railway cloud.",
+                "fusion_engine": False,
+                "deployment": "cloud-only",
+                "status": "models_downloading"
+            }
+        else:
+            # Generate response using cloud AI
+            response_data = await cloud_ai.generate_response(user_message, model_override)
+            
+            # Add conversation tracking
+            response_data.update({
+                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+                "timestamp": datetime.now().isoformat(),
+                "processing_time": 0.0,
+                "capabilities_used": ["cloud_model"],
+                "synthesis_reasoning": "Cloud AI model provided response based on cloud_model.",
+                "fusion_engine": False,
+                "deployment": "cloud-only",
+                "status": "success"
+            })
         
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
         
     except HTTPException as e:
