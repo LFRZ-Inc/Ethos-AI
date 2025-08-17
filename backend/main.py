@@ -471,38 +471,24 @@ async def chat_endpoint(request: Request):
         # Check if models are available
         available_models = get_available_models()
         
-        # Try to use real 3B and 7B models on Railway
-        try:
-            # Generate response using cloud AI
-            response_data = await cloud_ai.generate_response(user_message, model_override)
-            response_data.update({
-                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                "timestamp": datetime.now().isoformat(),
-                "processing_time": 0.0,
-                "capabilities_used": ["cloud_model"],
-                "synthesis_reasoning": "Cloud AI model provided response based on cloud_model.",
-                "fusion_engine": False,
-                "deployment": "cloud-only",
-                "status": "success"
-            })
-        except Exception as e:
-            logger.warning(f"Cloud model failed: {e}")
-            # Provide intelligent responses when Railway constraints prevent model inference
-            intelligent_response = self.generate_intelligent_response(user_message, model_override)
-            response_data = {
-                "message": intelligent_response,
-                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                "timestamp": datetime.now().isoformat(),
-                "model_used": "intelligent-fallback",
-                "confidence": 0.85,
-                "processing_time": 0.0,
-                "capabilities_used": ["intelligent_fallback"],
-                "synthesis_reasoning": "Intelligent fallback due to Railway Hobby Plan resource constraints.",
-                "fusion_engine": False,
-                "deployment": "cloud-only",
-                "status": "intelligent_fallback",
-                "railway_constraint": True
-            }
+        # For Railway Hobby Plan, use intelligent fallback to avoid timeouts
+        # The models are downloaded but Railway doesn't have enough resources for real-time inference
+        intelligent_response = cloud_ai.generate_intelligent_response(user_message, model_override)
+        response_data = {
+            "message": intelligent_response,
+            "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+            "timestamp": datetime.now().isoformat(),
+            "model_used": "intelligent-fallback",
+            "confidence": 0.85,
+            "processing_time": 0.0,
+            "capabilities_used": ["intelligent_fallback"],
+            "synthesis_reasoning": "Intelligent fallback optimized for Railway Hobby Plan constraints.",
+            "fusion_engine": False,
+            "deployment": "cloud-only",
+            "status": "intelligent_fallback",
+            "railway_constraint": True,
+            "note": "Models available but Railway Hobby Plan has resource constraints. Upgrade to Pro for real model inference."
+        }
         
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
