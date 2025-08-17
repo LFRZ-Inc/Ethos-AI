@@ -6,6 +6,7 @@ FORCE REDEPLOY - Railway should pick up this change
 
 VERSION: 3.0.0-CLOUD-ONLY
 DEPLOYMENT: FORCE-REBUILD-REQUIRED
+OLLAMA-INSTALLATION: READY
 """
 
 import asyncio
