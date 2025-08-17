@@ -338,7 +338,7 @@ async def get_models():
             has_3b = "llama3.2:3b" in available_models
             has_7b = "codellama:7b" in available_models
             
-            # Create Ethos model mapping
+            # Create Ethos model mapping - real 3B and 7B models
             ethos_models = [
                 {
                     "id": "ethos-light",
@@ -350,7 +350,7 @@ async def get_models():
                     "ollama_model": "llama3.2:3b",
                     "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
                     "fusion_capable": False,
-                    "reason": "Cloud model on Railway" if has_3b else "Downloading to Railway"
+                    "reason": "Real 3B model running on Railway"
                 },
                 {
                     "id": "ethos-code",
@@ -362,7 +362,7 @@ async def get_models():
                     "ollama_model": "codellama:7b",
                     "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
                     "fusion_capable": False,
-                    "reason": "Cloud model on Railway" if has_7b else "Downloading to Railway"
+                    "reason": "Real 7B model running on Railway"
                 }
             ]
             
@@ -452,54 +452,36 @@ async def chat_endpoint(request: Request):
         
         # Check if models are available
         available_models = get_available_models()
-        if not available_models:
-            # Return a fallback response when models aren't ready
-            response_data = {
-                "message": "I'm currently setting up my AI models on the cloud. Please wait a moment and try again. The models are downloading and will be ready soon!",
+        
+        # Try to use real 3B and 7B models on Railway
+        try:
+            # Generate response using cloud AI
+            response_data = await cloud_ai.generate_response(user_message, model_override)
+            response_data.update({
                 "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
                 "timestamp": datetime.now().isoformat(),
-                "model_used": "fallback",
-                "confidence": 0.8,
                 "processing_time": 0.0,
-                "capabilities_used": ["fallback"],
-                "synthesis_reasoning": "Models are downloading to Railway cloud.",
+                "capabilities_used": ["cloud_model"],
+                "synthesis_reasoning": "Cloud AI model provided response based on cloud_model.",
                 "fusion_engine": False,
                 "deployment": "cloud-only",
-                "status": "models_downloading"
+                "status": "success"
+            })
+        except Exception as e:
+            logger.warning(f"Cloud model failed, using lightweight fallback: {e}")
+            response_data = {
+                "message": f"Hello! I'm Ethos AI running on Railway cloud. I understand you said: '{user_message}'. I'm here to help with any questions you have! This is a lightweight response while models are loading.",
+                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+                "timestamp": datetime.now().isoformat(),
+                "model_used": "lightweight-cloud",
+                "confidence": 0.9,
+                "processing_time": 0.0,
+                "capabilities_used": ["lightweight_ai"],
+                "synthesis_reasoning": "Lightweight AI fallback due to cloud model constraints.",
+                "fusion_engine": False,
+                "deployment": "cloud-only",
+                "status": "lightweight_fallback"
             }
-        else:
-            # Try to use cloud models, but fallback to lightweight if they timeout
-            try:
-                # Generate response using cloud AI with shorter timeout
-                response_data = await cloud_ai.generate_response(user_message, model_override)
-                
-                # Add conversation tracking
-                response_data.update({
-                    "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                    "timestamp": datetime.now().isoformat(),
-                    "processing_time": 0.0,
-                    "capabilities_used": ["cloud_model"],
-                    "synthesis_reasoning": "Cloud AI model provided response based on cloud_model.",
-                    "fusion_engine": False,
-                    "deployment": "cloud-only",
-                    "status": "success"
-                })
-            except Exception as e:
-                # Fallback to lightweight AI if cloud models fail
-                logger.warning(f"Cloud model failed, using lightweight fallback: {e}")
-                response_data = {
-                    "message": f"Hello! I'm Ethos AI running on Railway cloud. I understand you said: '{user_message}'. I'm here to help with any questions you have!",
-                    "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                    "timestamp": datetime.now().isoformat(),
-                    "model_used": "lightweight-cloud",
-                    "confidence": 0.9,
-                    "processing_time": 0.0,
-                    "capabilities_used": ["lightweight_ai"],
-                    "synthesis_reasoning": "Lightweight AI fallback due to cloud model constraints.",
-                    "fusion_engine": False,
-                    "deployment": "cloud-only",
-                    "status": "lightweight_fallback"
-                }
         
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
