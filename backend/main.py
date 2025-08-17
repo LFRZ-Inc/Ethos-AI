@@ -109,17 +109,18 @@ def install_ollama_on_railway():
 
 # Download models to Railway
 def download_models_to_railway():
-    """Download only 3B model to Railway for better performance"""
+    """Download both 3B and 7B models to Railway to test which works"""
     global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
     
     if MODELS_DOWNLOADED or DOWNLOAD_IN_PROGRESS:
         return MODELS_DOWNLOADED
     
     DOWNLOAD_IN_PROGRESS = True
-    logger.info("🚀 Starting 3B model download to Railway...")
+    logger.info("🚀 Starting model downloads to Railway...")
     
     models_to_download = [
-        "llama3.2:3b"  # Only 3B model for Railway Hobby Plan
+        "llama3.2:3b",
+        "codellama:7b"
     ]
     
     try:
@@ -141,7 +142,7 @@ def download_models_to_railway():
         
         MODELS_DOWNLOADED = True
         DOWNLOAD_IN_PROGRESS = False
-        logger.info("🎉 3B model downloaded successfully!")
+        logger.info("🎉 All models downloaded successfully!")
         return True
         
     except Exception as e:
@@ -205,10 +206,16 @@ class CloudAISystem:
             return True
     
     async def generate_response(self, user_message, model_override="ethos-light"):
-        """Generate response using 3B model optimized for Railway"""
+        """Generate response using available models - test both 3B and 7B"""
         
-        # Use only 3B model for Railway Hobby Plan
-        ollama_model = "llama3.2:3b"
+        # Map Ethos models to local Ollama models
+        model_mapping = {
+            "ethos-light": "llama3.2:3b",
+            "ethos-code": "codellama:7b"
+        }
+        
+        # Get the requested model
+        ollama_model = model_mapping.get(model_override, "llama3.2:3b")
         
         # Check if model is available
         available_models = get_available_models()
@@ -349,7 +356,7 @@ async def get_models():
             has_3b = "llama3.2:3b" in available_models
             has_7b = "codellama:7b" in available_models
             
-            # Create Ethos model mapping - only 3B model for Railway Hobby Plan
+            # Create Ethos model mapping - test both 3B and 7B models
             ethos_models = [
                 {
                     "id": "ethos-light",
@@ -359,9 +366,21 @@ async def get_models():
                     "enabled": has_3b,
                     "status": "available" if has_3b else "downloading",
                     "ollama_model": "llama3.2:3b",
-                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "programming", "code_generation"],
+                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
                     "fusion_capable": False,
-                    "reason": "Real 3B model optimized for Railway Hobby Plan"
+                    "reason": "Real 3B model on Railway"
+                },
+                {
+                    "id": "ethos-code",
+                    "name": "Ethos Code (7B)",
+                    "type": "cloud",
+                    "provider": "ollama",
+                    "enabled": has_7b,
+                    "status": "available" if has_7b else "downloading",
+                    "ollama_model": "codellama:7b",
+                    "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
+                    "fusion_capable": False,
+                    "reason": "Real 7B model on Railway"
                 }
             ]
             
@@ -452,39 +471,27 @@ async def chat_endpoint(request: Request):
         # Check if models are available
         available_models = get_available_models()
         
-        # Try to use real 3B model on Railway
+        # Try to use real models on Railway - no fallback responses
         try:
             # Generate response using cloud AI
-            response_data = await cloud_ai.generate_response(user_message, "ethos-light")  # Always use 3B model
+            response_data = await cloud_ai.generate_response(user_message, model_override)
             response_data.update({
                 "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
                 "timestamp": datetime.now().isoformat(),
                 "processing_time": 0.0,
                 "capabilities_used": ["cloud_model"],
-                "synthesis_reasoning": "Cloud AI model provided response based on 3B model.",
+                "synthesis_reasoning": f"Cloud AI model provided response based on {model_override}.",
                 "fusion_engine": False,
                 "deployment": "cloud-only",
                 "status": "success"
             })
         except Exception as e:
-            logger.warning(f"3B model failed, using intelligent fallback: {e}")
-            # Provide intelligent responses when 3B model fails
-            intelligent_response = cloud_ai.generate_intelligent_response(user_message, "ethos-light")
-            response_data = {
-                "message": intelligent_response,
-                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                "timestamp": datetime.now().isoformat(),
-                "model_used": "intelligent-fallback",
-                "confidence": 0.85,
-                "processing_time": 0.0,
-                "capabilities_used": ["intelligent_fallback"],
-                "synthesis_reasoning": "Intelligent fallback due to 3B model constraints.",
-                "fusion_engine": False,
-                "deployment": "cloud-only",
-                "status": "intelligent_fallback",
-                "railway_constraint": True,
-                "note": "3B model available but Railway Hobby Plan has resource constraints."
-            }
+            logger.error(f"Model {model_override} failed: {e}")
+            # No fallback - let the error propagate
+            raise HTTPException(
+                status_code=503,
+                detail=f"Model {model_override} failed to respond: {str(e)}"
+            )
         
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
