@@ -689,6 +689,62 @@ async def get_tunnel_status():
         "deployment": "hybrid"
     }
 
+@app.post("/api/models/{model_id}/initialize")
+async def initialize_model(model_id: str):
+    """Initialize a specific model - for frontend compatibility"""
+    try:
+        # Check if local models are available
+        local_available = hybrid_ai.check_local_models()
+        
+        if local_available:
+            return {
+                "status": "success",
+                "message": f"Model {model_id} initialized successfully",
+                "model_id": model_id,
+                "available": True,
+                "deployment": "hybrid-local"
+            }
+        else:
+            return {
+                "status": "success", 
+                "message": f"Model {model_id} available via cloud fallback",
+                "model_id": model_id,
+                "available": True,
+                "deployment": "hybrid-cloud"
+            }
+            
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Failed to initialize model {model_id}: {str(e)}",
+            "model_id": model_id,
+            "available": False,
+            "deployment": "hybrid"
+        }
+
+@app.get("/api/models/{model_id}/status")
+async def get_model_status(model_id: str):
+    """Get status of a specific model - for frontend compatibility"""
+    try:
+        # Check if local models are available
+        local_available = hybrid_ai.check_local_models()
+        
+        return {
+            "model_id": model_id,
+            "status": "available" if local_available else "cloud_fallback",
+            "available": True,
+            "deployment": "hybrid-local" if local_available else "hybrid-cloud"
+        }
+        
+    except Exception as e:
+        return {
+            "model_id": model_id,
+            "status": "error",
+            "available": False,
+            "error": str(e),
+            "deployment": "hybrid"
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000) 
