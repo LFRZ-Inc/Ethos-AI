@@ -2,6 +2,7 @@
 """
 Cloud-Only Ethos AI Main Application
 Fully cloud-based - no local server needed!
+FORCE REDEPLOY - Railway should pick up this change
 """
 
 import asyncio
