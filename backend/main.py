@@ -109,18 +109,17 @@ def install_ollama_on_railway():
 
 # Download models to Railway
 def download_models_to_railway():
-    """Download 3B and 7B models directly to Railway"""
+    """Download only 3B model to Railway for better performance"""
     global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
     
     if MODELS_DOWNLOADED or DOWNLOAD_IN_PROGRESS:
         return MODELS_DOWNLOADED
     
     DOWNLOAD_IN_PROGRESS = True
-    logger.info("🚀 Starting model downloads to Railway...")
+    logger.info("🚀 Starting 3B model download to Railway...")
     
     models_to_download = [
-        "llama3.2:3b",
-        "codellama:7b"
+        "llama3.2:3b"  # Only 3B model for Railway Hobby Plan
     ]
     
     try:
@@ -142,7 +141,7 @@ def download_models_to_railway():
         
         MODELS_DOWNLOADED = True
         DOWNLOAD_IN_PROGRESS = False
-        logger.info("🎉 All models downloaded successfully!")
+        logger.info("🎉 3B model downloaded successfully!")
         return True
         
     except Exception as e:
@@ -206,16 +205,10 @@ class CloudAISystem:
             return True
     
     async def generate_response(self, user_message, model_override="ethos-light"):
-        """Generate response using cloud models with Railway optimization"""
+        """Generate response using 3B model optimized for Railway"""
         
-        # Map Ethos models to local Ollama models
-        model_mapping = {
-            "ethos-light": "llama3.2:3b",
-            "ethos-code": "codellama:7b"
-        }
-        
-        # Default to 3B model for Railway Hobby Plan (faster, less resource intensive)
-        ollama_model = model_mapping.get(model_override, "llama3.2:3b")
+        # Use only 3B model for Railway Hobby Plan
+        ollama_model = "llama3.2:3b"
         
         # Check if model is available
         available_models = get_available_models()
@@ -356,7 +349,7 @@ async def get_models():
             has_3b = "llama3.2:3b" in available_models
             has_7b = "codellama:7b" in available_models
             
-            # Create Ethos model mapping - real 3B and 7B models
+            # Create Ethos model mapping - only 3B model for Railway Hobby Plan
             ethos_models = [
                 {
                     "id": "ethos-light",
@@ -366,21 +359,9 @@ async def get_models():
                     "enabled": has_3b,
                     "status": "available" if has_3b else "downloading",
                     "ollama_model": "llama3.2:3b",
-                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
+                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "programming", "code_generation"],
                     "fusion_capable": False,
-                    "reason": "Real 3B model running on Railway"
-                },
-                {
-                    "id": "ethos-code",
-                    "name": "Ethos Code (7B)",
-                    "type": "cloud",
-                    "provider": "ollama",
-                    "enabled": has_7b,
-                    "status": "available" if has_7b else "downloading",
-                    "ollama_model": "codellama:7b",
-                    "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
-                    "fusion_capable": False,
-                    "reason": "Real 7B model running on Railway"
+                    "reason": "Real 3B model optimized for Railway Hobby Plan"
                 }
             ]
             
@@ -471,24 +452,39 @@ async def chat_endpoint(request: Request):
         # Check if models are available
         available_models = get_available_models()
         
-        # For Railway Hobby Plan, use intelligent fallback to avoid timeouts
-        # The models are downloaded but Railway doesn't have enough resources for real-time inference
-        intelligent_response = cloud_ai.generate_intelligent_response(user_message, model_override)
-        response_data = {
-            "message": intelligent_response,
-            "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-            "timestamp": datetime.now().isoformat(),
-            "model_used": "intelligent-fallback",
-            "confidence": 0.85,
-            "processing_time": 0.0,
-            "capabilities_used": ["intelligent_fallback"],
-            "synthesis_reasoning": "Intelligent fallback optimized for Railway Hobby Plan constraints.",
-            "fusion_engine": False,
-            "deployment": "cloud-only",
-            "status": "intelligent_fallback",
-            "railway_constraint": True,
-            "note": "Models available but Railway Hobby Plan has resource constraints. Upgrade to Pro for real model inference."
-        }
+        # Try to use real 3B model on Railway
+        try:
+            # Generate response using cloud AI
+            response_data = await cloud_ai.generate_response(user_message, "ethos-light")  # Always use 3B model
+            response_data.update({
+                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+                "timestamp": datetime.now().isoformat(),
+                "processing_time": 0.0,
+                "capabilities_used": ["cloud_model"],
+                "synthesis_reasoning": "Cloud AI model provided response based on 3B model.",
+                "fusion_engine": False,
+                "deployment": "cloud-only",
+                "status": "success"
+            })
+        except Exception as e:
+            logger.warning(f"3B model failed, using intelligent fallback: {e}")
+            # Provide intelligent responses when 3B model fails
+            intelligent_response = cloud_ai.generate_intelligent_response(user_message, "ethos-light")
+            response_data = {
+                "message": intelligent_response,
+                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
+                "timestamp": datetime.now().isoformat(),
+                "model_used": "intelligent-fallback",
+                "confidence": 0.85,
+                "processing_time": 0.0,
+                "capabilities_used": ["intelligent_fallback"],
+                "synthesis_reasoning": "Intelligent fallback due to 3B model constraints.",
+                "fusion_engine": False,
+                "deployment": "cloud-only",
+                "status": "intelligent_fallback",
+                "railway_constraint": True,
+                "note": "3B model available but Railway Hobby Plan has resource constraints."
+            }
         
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
