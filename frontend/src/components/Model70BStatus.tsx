@@ -127,14 +127,8 @@ const ModelSystemStatus: React.FC = () => {
       ) : (
         <>
           <span className="text-blue-700 dark:text-blue-300">AI Models Available</span>
-          <button
-            onClick={() => initializeModel('ethos-3b')} // Start with fastest model
-            disabled={initializing !== null}
-            className="flex items-center space-x-1 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded transition-colors"
-          >
-            <Play size={12} />
-            <span>Initialize</span>
-          </button>
+          <CheckCircle size={16} className="text-green-600 dark:text-green-400" />
+          <span className="text-green-700 dark:text-green-300">Auto-initialized</span>
         </>
       )}
     </div>

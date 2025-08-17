@@ -180,7 +180,7 @@ const ChatInterface: React.FC = () => {
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result.content,
+        content: result.message || result.content, // Handle both message and content fields
         timestamp: result.timestamp,
         modelUsed: result.model_used,
         toolsCalled: result.tools_called,
