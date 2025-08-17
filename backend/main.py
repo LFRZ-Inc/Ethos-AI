@@ -22,6 +22,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+import requests
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -188,6 +189,87 @@ class LightweightAI:
 # Initialize lightweight AI
 lightweight_ai = LightweightAI()
 
+# Hybrid AI System - Local Models + Cloud Fallback
+class HybridAISystem:
+    """Hybrid AI system that tries local models first, falls back to lightweight AI"""
+    
+    def __init__(self):
+        self.tunnel_url = None
+        self.local_available = False
+        self.lightweight_ai = LightweightAI()
+        
+    def set_tunnel_url(self, url):
+        """Set the localtunnel URL for local models"""
+        self.tunnel_url = url
+        self.local_available = True
+        logger.info(f"🌐 Tunnel URL set: {url}")
+    
+    def check_local_models(self):
+        """Check if local models are available via tunnel"""
+        if not self.tunnel_url:
+            return False
+            
+        try:
+            response = requests.get(f"{self.tunnel_url}/api/tags", timeout=5)
+            if response.status_code == 200:
+                models = response.json().get("models", [])
+                available_models = [model["name"] for model in models]
+                logger.info(f"✅ Local models available: {available_models}")
+                return True
+        except Exception as e:
+            logger.warning(f"❌ Local models not available: {e}")
+        
+        return False
+    
+    async def generate_response(self, user_message, model_override="ethos-light"):
+        """Generate response using local models or fallback to lightweight AI"""
+        
+        # Try local models first
+        if self.local_available and self.check_local_models():
+            try:
+                # Map Ethos models to local Ollama models
+                model_mapping = {
+                    "ethos-light": "llama3.2:3b",
+                    "ethos-code": "codellama:7b", 
+                    "ethos-pro": "gpt-oss:20b",
+                    "ethos-creative": "llama3.1:70b"
+                }
+                
+                ollama_model = model_mapping.get(model_override, "llama3.2:3b")
+                
+                # Call local Ollama via tunnel
+                payload = {
+                    "model": ollama_model,
+                    "prompt": user_message,
+                    "stream": False
+                }
+                
+                response = requests.post(
+                    f"{self.tunnel_url}/api/generate",
+                    json=payload,
+                    timeout=30
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return {
+                        "response": result.get("response", ""),
+                        "model_used": model_override,
+                        "confidence": 0.95,
+                        "source": "local_model",
+                        "local": True
+                    }
+                    
+            except Exception as e:
+                logger.error(f"❌ Local model error: {e}")
+        
+        # Fallback to lightweight AI
+        logger.info("🔄 Falling back to lightweight AI")
+        return self.lightweight_ai.generate_response(user_message, model_override)
+
+# Initialize hybrid AI system
+hybrid_ai = HybridAISystem()
+
 def check_ollama_available():
     """Check if ollama is available on Railway"""
     try:
@@ -312,6 +394,9 @@ async def get_models():
                 }
             ]
             
+            # Check if local models are available
+            local_available = hybrid_ai.check_local_models()
+            
             response_data = {
                 "models": ethos_models,
                 "total": len([m for m in ethos_models if m["enabled"]]),
@@ -319,8 +404,10 @@ async def get_models():
                 "fusion_engine": True,
                 "ollama_available": True,
                 "available_models": available_models,
-                "message": "Cloud Ethos Fusion Engine is active - running models directly on Railway",
-                "deployment": "cloud-only"
+                "local_available": local_available,
+                "hybrid_mode": True,
+                "message": f"Hybrid AI System active - {'Local models available' if local_available else 'Cloud fallback active'}",
+                "deployment": "hybrid"
             }
         except Exception as e:
             logger.error(f"Error getting models: {e}")
@@ -449,15 +536,18 @@ def get_fallback_status():
 
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatMessage):
-    """Main chat endpoint using Lightweight AI for Railway free tier"""
+    """Main chat endpoint using Hybrid AI System"""
     start_time = time.time()
     
     try:
-        # Use Lightweight AI for Railway free tier
+        # Use Hybrid AI System (local models + cloud fallback)
         model_override = request.model_override or "ethos-light"
-        ai_response = lightweight_ai.generate_response(request.content, model_override)
+        ai_response = await hybrid_ai.generate_response(request.content, model_override)
         
         processing_time = time.time() - start_time
+        
+        # Determine deployment type
+        deployment_type = "hybrid-local" if ai_response.get("local", False) else "hybrid-cloud"
         
         response_data = {
             "message": ai_response["response"],
@@ -467,9 +557,9 @@ async def chat_endpoint(request: ChatMessage):
             "confidence": ai_response["confidence"],
             "processing_time": processing_time,
             "capabilities_used": [ai_response["source"]],
-            "synthesis_reasoning": f"Lightweight AI analyzed your message and provided a response based on {ai_response['source']}.",
+            "synthesis_reasoning": f"Hybrid AI used {'local model' if ai_response.get('local') else 'cloud fallback'} to provide response based on {ai_response['source']}.",
             "fusion_engine": False,
-            "deployment": "cloud-only-lightweight",
+            "deployment": deployment_type,
             "status": "success"
         }
         
@@ -598,6 +688,44 @@ async def download_models():
             "message": f"Error downloading models: {str(e)}",
             "deployment": "cloud-only"
         }
+
+@app.post("/api/set-tunnel")
+async def set_tunnel_url(request: dict):
+    """Set the tunnel URL for local models"""
+    try:
+        tunnel_url = request.get("tunnel_url")
+        if tunnel_url:
+            hybrid_ai.set_tunnel_url(tunnel_url)
+            return {
+                "status": "success",
+                "message": f"Tunnel URL set: {tunnel_url}",
+                "local_available": hybrid_ai.local_available,
+                "deployment": "hybrid"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "No tunnel URL provided",
+                "deployment": "hybrid"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error setting tunnel: {str(e)}",
+            "deployment": "hybrid"
+        }
+
+@app.get("/api/tunnel-status")
+async def get_tunnel_status():
+    """Get tunnel and local model status"""
+    local_available = hybrid_ai.check_local_models()
+    
+    return {
+        "tunnel_url": hybrid_ai.tunnel_url,
+        "local_available": local_available,
+        "hybrid_mode": True,
+        "deployment": "hybrid"
+    }
 
 if __name__ == "__main__":
     import uvicorn
