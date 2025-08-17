@@ -633,6 +633,52 @@ async def get_conversation(conversation_id: str):
         "deployment": "cloud-only"
     }
 
+@app.get("/api/test-ollama")
+async def test_ollama_endpoint():
+    """Test Ollama and download models"""
+    try:
+        # Test Ollama
+        result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+        if result.returncode != 0:
+            return {
+                "status": "error",
+                "message": "Ollama not available",
+                "error": result.stderr,
+                "deployment": "cloud-only"
+            }
+        
+        ollama_version = result.stdout.strip()
+        
+        # List current models
+        list_result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+        current_models = list_result.stdout if list_result.returncode == 0 else "Error listing models"
+        
+        # Try to download 3B model
+        download_result = subprocess.run(
+            ['ollama', 'pull', 'llama3.2:3b'],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minutes for test
+        )
+        
+        download_success = download_result.returncode == 0
+        
+        return {
+            "status": "success",
+            "ollama_version": ollama_version,
+            "current_models": current_models,
+            "download_success": download_success,
+            "download_output": download_result.stdout if download_success else download_result.stderr,
+            "deployment": "cloud-only"
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Test failed: {str(e)}",
+            "deployment": "cloud-only"
+        }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
