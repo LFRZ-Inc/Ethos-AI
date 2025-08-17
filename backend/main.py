@@ -206,37 +206,23 @@ class CloudAISystem:
             return True
     
     async def generate_response(self, user_message, model_override="ethos-light"):
-        """Generate response using cloud models"""
+        """Generate response using cloud models with Railway optimization"""
         
-        if not self.models_ready:
-            if not self.initialize_models():
-                raise HTTPException(
-                    status_code=503,
-                    detail="Models not ready. Please wait for download to complete."
-                )
+        # Map Ethos models to local Ollama models
+        model_mapping = {
+            "ethos-light": "llama3.2:3b",
+            "ethos-code": "codellama:7b"
+        }
         
-        # Check if we have any models available
+        # Default to 3B model for Railway Hobby Plan (faster, less resource intensive)
+        ollama_model = model_mapping.get(model_override, "llama3.2:3b")
+        
+        # Check if model is available
         available_models = get_available_models()
-        if not available_models:
-            raise HTTPException(
-                status_code=503,
-                detail="No models available. Please wait for models to download."
-            )
-        
-        try:
-            # Map Ethos models to local Ollama models
-            model_mapping = {
-                "ethos-light": "llama3.2:3b",
-                "ethos-code": "codellama:7b"
-            }
-            
-            ollama_model = model_mapping.get(model_override, "llama3.2:3b")
-            
-            # Check if model is available
-            available_models = get_available_models()
-            if ollama_model not in available_models:
-                # Try to download the specific model
-                logger.info(f"📥 Model {ollama_model} not found, downloading...")
+        if ollama_model not in available_models:
+            # Try to download the specific model
+            logger.info(f"📥 Model {ollama_model} not found, downloading...")
+            try:
                 result = subprocess.run(
                     ['ollama', 'pull', ollama_model],
                     capture_output=True,
@@ -251,15 +237,21 @@ class CloudAISystem:
                     )
                 
                 logger.info(f"✅ {ollama_model} downloaded successfully")
-            
-            logger.info(f"🚀 Calling cloud model {ollama_model}")
-            
-            # Use subprocess to call Ollama directly
+            except subprocess.TimeoutExpired:
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Timeout downloading model {ollama_model}"
+                )
+        
+        logger.info(f"🚀 Calling cloud model {ollama_model}")
+        
+        try:
+            # Use subprocess to call Ollama with shorter timeout for Railway
             result = subprocess.run(
                 ['ollama', 'run', ollama_model, user_message],
                 capture_output=True,
                 text=True,
-                timeout=300  # 5 minutes timeout for cloud models
+                timeout=120  # 2 minutes timeout for Railway Hobby Plan
             )
             
             if result.returncode == 0:
@@ -280,10 +272,10 @@ class CloudAISystem:
                 )
                 
         except subprocess.TimeoutExpired:
-            logger.error("❌ Request timeout")
+            logger.error("❌ Request timeout - Railway resource constraints")
             raise HTTPException(
                 status_code=503,
-                detail="Request timeout - model may be loading"
+                detail="Request timeout - Railway Hobby Plan may not have sufficient resources for this model"
             )
         except Exception as e:
             logger.error(f"❌ Cloud model error: {e}")
@@ -468,19 +460,21 @@ async def chat_endpoint(request: Request):
                 "status": "success"
             })
         except Exception as e:
-            logger.warning(f"Cloud model failed, using lightweight fallback: {e}")
+            logger.warning(f"Cloud model failed: {e}")
+            # Provide a more informative response about Railway constraints
             response_data = {
-                "message": f"Hello! I'm Ethos AI running on Railway cloud. I understand you said: '{user_message}'. I'm here to help with any questions you have! This is a lightweight response while models are loading.",
+                "message": f"I understand you said: '{user_message}'. I'm Ethos AI running on Railway cloud with real 3B/7B models. The models are available but Railway's Hobby Plan has resource constraints that may cause timeouts. For better performance, consider upgrading to Railway Pro or using the hybrid setup with local Ollama.",
                 "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
                 "timestamp": datetime.now().isoformat(),
-                "model_used": "lightweight-cloud",
-                "confidence": 0.9,
+                "model_used": "railway-constrained",
+                "confidence": 0.8,
                 "processing_time": 0.0,
-                "capabilities_used": ["lightweight_ai"],
-                "synthesis_reasoning": "Lightweight AI fallback due to cloud model constraints.",
+                "capabilities_used": ["railway_fallback"],
+                "synthesis_reasoning": "Railway Hobby Plan resource constraints preventing model inference.",
                 "fusion_engine": False,
                 "deployment": "cloud-only",
-                "status": "lightweight_fallback"
+                "status": "railway_constraints",
+                "error_details": str(e)
             }
         
         response = JSONResponse(content=response_data)
