@@ -302,15 +302,20 @@ async def root():
     ollama_available = check_ollama_available()
     available_models = get_available_models() if ollama_available else []
     
+    # Check if local models are available via tunnel
+    local_available = hybrid_ai.check_local_models()
+    
     return {
-        "message": "Ethos AI - Cloud Edition",
+        "message": "Ethos AI - Hybrid Edition",
         "status": "healthy",
-        "version": "3.0.0-CLOUD-ONLY",
+        "version": "3.0.0-HYBRID",
         "fusion_available": FUSION_AVAILABLE,
         "ollama_available": ollama_available,
         "available_models": available_models,
-        "deployment": "cloud-only",
-        "build": "FORCE-REBUILD-COMPLETED"
+        "local_available": local_available,
+        "hybrid_mode": True,
+        "deployment": "hybrid",
+        "build": "HYBRID-SYSTEM-ACTIVE"
     }
 
 @app.get("/health")
@@ -318,16 +323,21 @@ async def health_check():
     ollama_available = check_ollama_available()
     available_models = get_available_models() if ollama_available else []
     
+    # Check if local models are available via tunnel
+    local_available = hybrid_ai.check_local_models()
+    
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "3.0.0-CLOUD-ONLY",
+        "version": "3.0.0-HYBRID",
         "fusion_engine": FUSION_AVAILABLE,
         "ollama_available": ollama_available,
         "available_models": available_models,
-        "deployment": "cloud-only",
-        "build": "FORCE-REBUILD-COMPLETED",
-        "message": "Cloud-only deployment active"
+        "local_available": local_available,
+        "hybrid_mode": True,
+        "deployment": "hybrid",
+        "build": "HYBRID-SYSTEM-ACTIVE",
+        "message": f"Hybrid AI System - {'Local models connected' if local_available else 'Cloud fallback active'}"
     }
 
 @app.get("/api/models")
@@ -632,62 +642,14 @@ async def get_fusion_status():
 
 @app.post("/api/download-models")
 async def download_models():
-    """Trigger model download on Railway"""
-    try:
-        logger.info("🚀 Starting model download on Railway...")
-        
-        # Download 3B model
-        logger.info("📦 Downloading llama3.2:3b...")
-        result_3b = subprocess.run(
-            ['ollama', 'pull', 'llama3.2:3b'],
-            capture_output=True,
-            text=True,
-            timeout=1800  # 30 minutes timeout
-        )
-        
-        if result_3b.returncode == 0:
-            logger.info("✅ llama3.2:3b downloaded successfully")
-        else:
-            logger.error(f"❌ Failed to download llama3.2:3b: {result_3b.stderr}")
-        
-        # Download 7B model
-        logger.info("📦 Downloading codellama:7b...")
-        result_7b = subprocess.run(
-            ['ollama', 'pull', 'codellama:7b'],
-            capture_output=True,
-            text=True,
-            timeout=1800  # 30 minutes timeout
-        )
-        
-        if result_7b.returncode == 0:
-            logger.info("✅ codellama:7b downloaded successfully")
-        else:
-            logger.error(f"❌ Failed to download codellama:7b: {result_7b.stderr}")
-        
-        # Check final status
-        available_models = get_available_models()
-        
-        return {
-            "status": "success",
-            "message": "Model download completed",
-            "available_models": available_models,
-            "llama3.2_3b_success": result_3b.returncode == 0,
-            "codellama_7b_success": result_7b.returncode == 0,
-            "deployment": "cloud-only"
-        }
-        
-    except subprocess.TimeoutExpired:
-        return {
-            "status": "timeout",
-            "message": "Model download timed out (30 minutes)",
-            "deployment": "cloud-only"
-        }
-    except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Error downloading models: {str(e)}",
-            "deployment": "cloud-only"
-        }
+    """Model download disabled - using local models via tunnel only"""
+    return {
+        "status": "disabled",
+        "message": "Cloud model downloads disabled. Use local models via tunnel.",
+        "deployment": "hybrid",
+        "local_models_only": True,
+        "tunnel_required": True
+    }
 
 @app.post("/api/set-tunnel")
 async def set_tunnel_url(request: dict):
