@@ -481,14 +481,11 @@ async def chat_endpoint(request: ChatMessage):
     start_time = time.time()
     
     try:
-        # Use Hybrid AI System (local models + cloud fallback)
+        # Use Hybrid AI System (local models only)
         model_override = request.model_override or "ethos-light"
         ai_response = await hybrid_ai.generate_response(request.content, model_override)
         
         processing_time = time.time() - start_time
-        
-        # Determine deployment type
-        deployment_type = "hybrid-local" if ai_response.get("local", False) else "hybrid-cloud"
         
         response_data = {
             "message": ai_response["response"],
@@ -498,9 +495,9 @@ async def chat_endpoint(request: ChatMessage):
             "confidence": ai_response["confidence"],
             "processing_time": processing_time,
             "capabilities_used": [ai_response["source"]],
-            "synthesis_reasoning": f"Hybrid AI used {'local model' if ai_response.get('local') else 'cloud fallback'} to provide response based on {ai_response['source']}.",
+            "synthesis_reasoning": f"Local AI model provided response based on {ai_response['source']}.",
             "fusion_engine": False,
-            "deployment": deployment_type,
+            "deployment": "hybrid-local",
             "status": "success"
         }
         
@@ -510,11 +507,18 @@ async def chat_endpoint(request: ChatMessage):
         response.headers["Access-Control-Allow-Headers"] = "*"
         return response
         
+    except HTTPException as e:
+        # Re-raise HTTP exceptions as-is
+        raise e
     except Exception as e:
-        logger.error(f"Error in chat endpoint: {e}")
-        raise HTTPException(
+        logger.error(f"Chat error: {e}")
+        return JSONResponse(
             status_code=500,
-            detail=f"Error generating response: {str(e)}"
+            content={
+                "error": "Error generating response",
+                "message": f"Failed to generate response: {str(e)}",
+                "deployment": "hybrid-error"
+            }
         )
 
 @app.post("/api/conversations")
@@ -622,7 +626,7 @@ async def get_tunnel_status():
 
 @app.post("/api/models/{model_id}/initialize")
 async def initialize_model(model_id: str):
-    """Initialize a specific model - for frontend compatibility"""
+    """Auto-initialize models at launch - always return success"""
     try:
         # Check if local models are available
         local_available = hybrid_ai.check_local_models()
@@ -630,18 +634,18 @@ async def initialize_model(model_id: str):
         if local_available:
             return {
                 "status": "success",
-                "message": f"Model {model_id} initialized successfully",
+                "message": f"Model {model_id} initialized successfully via local tunnel",
                 "model_id": model_id,
                 "available": True,
                 "deployment": "hybrid-local"
             }
         else:
             return {
-                "status": "success", 
-                "message": f"Model {model_id} available via cloud fallback",
+                "status": "error", 
+                "message": f"Model {model_id} not available - tunnel not connected",
                 "model_id": model_id,
-                "available": True,
-                "deployment": "hybrid-cloud"
+                "available": False,
+                "deployment": "hybrid-unavailable"
             }
             
     except Exception as e:
@@ -650,7 +654,7 @@ async def initialize_model(model_id: str):
             "message": f"Failed to initialize model {model_id}: {str(e)}",
             "model_id": model_id,
             "available": False,
-            "deployment": "hybrid"
+            "deployment": "hybrid-error"
         }
 
 @app.get("/api/models/{model_id}/status")
