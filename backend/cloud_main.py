@@ -3,6 +3,9 @@
 Cloud-Only Ethos AI Main Application
 Fully cloud-based - no local server needed!
 FORCE REDEPLOY - Railway should pick up this change
+
+VERSION: 3.0.0-CLOUD-ONLY
+DEPLOYMENT: FORCE-REBUILD-REQUIRED
 """
 
 import asyncio
@@ -27,7 +30,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="3.0.0")
+app = FastAPI(title="Ethos AI - Cloud Edition", version="3.0.0-CLOUD-ONLY")
 
 # Add CORS middleware
 app.add_middleware(
@@ -102,11 +105,12 @@ async def root():
     return {
         "message": "Ethos AI - Cloud Edition",
         "status": "healthy",
+        "version": "3.0.0-CLOUD-ONLY",
         "fusion_available": FUSION_AVAILABLE,
         "ollama_available": ollama_available,
         "available_models": available_models,
-        "version": "3.0.0",
-        "deployment": "cloud-only"
+        "deployment": "cloud-only",
+        "build": "FORCE-REBUILD-COMPLETED"
     }
 
 @app.get("/health")
@@ -117,10 +121,13 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
+        "version": "3.0.0-CLOUD-ONLY",
         "fusion_engine": FUSION_AVAILABLE,
         "ollama_available": ollama_available,
         "available_models": available_models,
-        "deployment": "cloud-only"
+        "deployment": "cloud-only",
+        "build": "FORCE-REBUILD-COMPLETED",
+        "message": "Cloud-only deployment active"
     }
 
 @app.get("/api/models")

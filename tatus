@@ -1,0 +1,5 @@
+[33m42b3c7d[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m  Force Railway redeploy - Update to cloud-only version
+[33m9c1ad89[m[33m ([m[1;31morigin/development[m[33m, [m[1;32mdevelopment[m[33m)[m  Add Cloud-Only Ethos AI - No Local Server Needed! - Cloud fusion engine with 3B/7B models - Railway deployment ready - Download models directly to Railway - 20B/70B models marked unavailable until better PC - Complete cloud deployment guide
+[33m8642ec1[m Update tunnel URL to new working localtunnel endpoint
+[33m69c82d5[m Fix CORS error on chat endpoint and increase timeout for 70B creative model
+[33m659b2af[m Update tunnel URL to working localtunnel endpoint

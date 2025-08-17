@@ -1,0 +1,10 @@
+FORCE RAILWAY REBUILD
+====================
+
+This file forces Railway to detect changes and rebuild the application.
+
+Timestamp: 2025-08-17 18:45:00 UTC
+Version: 3.0.0-CLOUD-ONLY
+Deployment: FORCE-REBUILD-REQUIRED
+
+Railway should now rebuild with cloud_main.py as the entry point.
