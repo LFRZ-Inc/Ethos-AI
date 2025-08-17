@@ -52,6 +52,20 @@ def install_ollama_on_railway():
             if result.returncode == 0:
                 logger.info(f"✅ Ollama already installed: {result.stdout.strip()}")
                 OLLAMA_AVAILABLE = True
+                
+                # Start Ollama service in background
+                logger.info("🚀 Starting Ollama service...")
+                try:
+                    subprocess.Popen(['ollama', 'serve'], 
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL)
+                    logger.info("✅ Ollama service started in background")
+                    # Wait a moment for service to start
+                    import time
+                    time.sleep(5)
+                except Exception as e:
+                    logger.error(f"❌ Failed to start Ollama service: {e}")
+                
                 return True
         except:
             pass
@@ -67,6 +81,20 @@ def install_ollama_on_railway():
             if install_result.returncode == 0:
                 logger.info("✅ Ollama installed successfully")
                 OLLAMA_AVAILABLE = True
+                
+                # Start Ollama service in background
+                logger.info("🚀 Starting Ollama service...")
+                try:
+                    subprocess.Popen(['ollama', 'serve'], 
+                                   stdout=subprocess.DEVNULL, 
+                                   stderr=subprocess.DEVNULL)
+                    logger.info("✅ Ollama service started in background")
+                    # Wait a moment for service to start
+                    import time
+                    time.sleep(5)
+                except Exception as e:
+                    logger.error(f"❌ Failed to start Ollama service: {e}")
+                
                 return True
             else:
                 logger.error(f"❌ Ollama installation failed: {install_result.stderr}")
