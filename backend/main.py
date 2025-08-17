@@ -136,7 +136,7 @@ class HybridAISystem:
             return False
             
         try:
-            response = requests.get(f"{self.tunnel_url}/api/tags", timeout=5)
+            response = requests.get(f"{self.tunnel_url}/api/tags", timeout=10)
             if response.status_code == 200:
                 models = response.json().get("models", [])
                 available_models = [model["name"] for model in models]
@@ -150,51 +150,75 @@ class HybridAISystem:
     async def generate_response(self, user_message, model_override="ethos-light"):
         """Generate response using local models only - no fallback"""
         
-        # Try local models first
-        if self.local_available and self.check_local_models():
-            try:
-                # Map Ethos models to local Ollama models
-                model_mapping = {
-                    "ethos-light": "llama3.2:3b",
-                    "ethos-code": "codellama:7b", 
-                    "ethos-pro": "gpt-oss:20b",
-                    "ethos-creative": "llama3.1:70b"
-                }
-                
-                ollama_model = model_mapping.get(model_override, "llama3.2:3b")
-                
-                # Call local Ollama via tunnel
-                payload = {
-                    "model": ollama_model,
-                    "prompt": user_message,
-                    "stream": False
-                }
-                
-                response = requests.post(
-                    f"{self.tunnel_url}/api/generate",
-                    json=payload,
-                    timeout=30
-                )
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    return {
-                        "response": result.get("response", ""),
-                        "model_used": model_override,
-                        "confidence": 0.95,
-                        "source": "local_model",
-                        "local": True
-                    }
-                    
-            except Exception as e:
-                logger.error(f"❌ Local model error: {e}")
+        # Check if tunnel is connected and models are available
+        if not self.local_available:
+            logger.error("❌ Tunnel not connected")
+            raise HTTPException(
+                status_code=503,
+                detail="Tunnel not connected. Please set tunnel URL first."
+            )
         
-        # No fallback - return error if local models not available
-        logger.error("❌ Local models not available - no fallback")
-        raise HTTPException(
-            status_code=503,
-            detail="Local AI models not available. Please ensure your tunnel is running and models are loaded."
-        )
+        if not self.check_local_models():
+            logger.error("❌ Local models not accessible via tunnel")
+            raise HTTPException(
+                status_code=503,
+                detail="Local AI models not accessible. Please check tunnel connection."
+            )
+        
+        try:
+            # Map Ethos models to local Ollama models
+            model_mapping = {
+                "ethos-light": "llama3.2:3b",
+                "ethos-code": "codellama:7b", 
+                "ethos-pro": "gpt-oss:20b",
+                "ethos-creative": "llama3.1:70b"
+            }
+            
+            ollama_model = model_mapping.get(model_override, "llama3.2:3b")
+            
+            # Call local Ollama via tunnel
+            payload = {
+                "model": ollama_model,
+                "prompt": user_message,
+                "stream": False
+            }
+            
+            logger.info(f"🚀 Calling local model {ollama_model} via tunnel")
+            response = requests.post(
+                f"{self.tunnel_url}/api/generate",
+                json=payload,
+                timeout=60
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                logger.info(f"✅ Got response from {ollama_model}")
+                return {
+                    "response": result.get("response", ""),
+                    "model_used": model_override,
+                    "confidence": 0.95,
+                    "source": "local_model",
+                    "local": True
+                }
+            else:
+                logger.error(f"❌ Ollama API error: {response.status_code} - {response.text}")
+                raise HTTPException(
+                    status_code=503,
+                    detail=f"Ollama API error: {response.status_code}"
+                )
+                    
+        except requests.exceptions.Timeout:
+            logger.error("❌ Request timeout")
+            raise HTTPException(
+                status_code=503,
+                detail="Request timeout - model may be loading"
+            )
+        except Exception as e:
+            logger.error(f"❌ Local model error: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail=f"Local model error: {str(e)}"
+            )
 
 # Initialize hybrid AI system
 hybrid_ai = HybridAISystem()
