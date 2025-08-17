@@ -115,80 +115,6 @@ except Exception as e:
     fusion_engine = None
     FUSION_AVAILABLE = False
 
-# Lightweight AI Response System (for Railway free tier)
-class LightweightAI:
-    """Lightweight AI system that provides intelligent responses without large models"""
-    
-    def __init__(self):
-        self.conversation_history = []
-        self.personality = {
-            "name": "Ethos AI",
-            "traits": ["helpful", "intelligent", "creative", "analytical"],
-            "capabilities": ["analysis", "writing", "coding", "research"]
-        }
-    
-    def generate_response(self, user_message, model_type="ethos-light"):
-        """Generate intelligent responses based on message content"""
-        
-        # Add to conversation history
-        self.conversation_history.append({"user": user_message, "timestamp": time.time()})
-        
-        # Analyze message intent
-        message_lower = user_message.lower()
-        
-        # Knowledge-based responses
-        if "president" in message_lower:
-            return {
-                "response": "The current President of the United States is Joe Biden, who was inaugurated on January 20, 2021. He is the 46th President of the United States.",
-                "model_used": model_type,
-                "confidence": 0.95,
-                "source": "current_events"
-            }
-        
-        elif "weather" in message_lower:
-            return {
-                "response": "I don't have access to real-time weather data, but I can help you find weather information for your location. You can check weather apps or websites like weather.com for current conditions.",
-                "model_used": model_type,
-                "confidence": 0.85,
-                "source": "general_knowledge"
-            }
-        
-        elif "code" in message_lower or "programming" in message_lower:
-            return {
-                "response": "I can help you with programming! I'm knowledgeable about Python, JavaScript, Java, C++, and many other languages. What specific coding question do you have?",
-                "model_used": model_type,
-                "confidence": 0.90,
-                "source": "programming_knowledge"
-            }
-        
-        elif "hello" in message_lower or "hi" in message_lower:
-            return {
-                "response": f"Hello! I'm {self.personality['name']}, your AI assistant. I'm here to help you with analysis, writing, coding, research, and more. What can I assist you with today?",
-                "model_used": model_type,
-                "confidence": 0.95,
-                "source": "greeting"
-            }
-        
-        elif "help" in message_lower:
-            return {
-                "response": "I'm here to help! I can assist with:\n• Analysis and research\n• Writing and content creation\n• Programming and coding\n• Problem solving\n• General questions\n\nWhat would you like to work on?",
-                "model_used": model_type,
-                "confidence": 0.90,
-                "source": "help"
-            }
-        
-        # Default intelligent response
-        else:
-            return {
-                "response": f"I understand you're asking about '{user_message}'. As {self.personality['name']}, I can help you explore this topic. Could you provide more specific details about what you'd like to know?",
-                "model_used": model_type,
-                "confidence": 0.75,
-                "source": "general_intelligence"
-            }
-
-# Initialize lightweight AI
-lightweight_ai = LightweightAI()
-
 # Hybrid AI System - Local Models + Cloud Fallback
 class HybridAISystem:
     """Hybrid AI system that tries local models first, falls back to lightweight AI"""
@@ -196,7 +122,7 @@ class HybridAISystem:
     def __init__(self):
         self.tunnel_url = None
         self.local_available = False
-        self.lightweight_ai = LightweightAI()
+        self.lightweight_ai = None # No longer needed
         
     def set_tunnel_url(self, url):
         """Set the localtunnel URL for local models"""
@@ -222,7 +148,7 @@ class HybridAISystem:
         return False
     
     async def generate_response(self, user_message, model_override="ethos-light"):
-        """Generate response using local models or fallback to lightweight AI"""
+        """Generate response using local models only - no fallback"""
         
         # Try local models first
         if self.local_available and self.check_local_models():
@@ -263,9 +189,12 @@ class HybridAISystem:
             except Exception as e:
                 logger.error(f"❌ Local model error: {e}")
         
-        # Fallback to lightweight AI
-        logger.info("🔄 Falling back to lightweight AI")
-        return self.lightweight_ai.generate_response(user_message, model_override)
+        # No fallback - return error if local models not available
+        logger.error("❌ Local models not available - no fallback")
+        raise HTTPException(
+            status_code=503,
+            detail="Local AI models not available. Please ensure your tunnel is running and models are loaded."
+        )
 
 # Initialize hybrid AI system
 hybrid_ai = HybridAISystem()
@@ -352,31 +281,31 @@ async def get_models():
             has_3b = "llama3.2:3b" in available_models
             has_7b = "codellama:7b" in available_models
             
-            # Create Ethos model mapping with lightweight AI
+            # Create Ethos model mapping for local models
             ethos_models = [
                 {
                     "id": "ethos-light",
                     "name": "Ethos Light (3B)",
-                    "type": "cloud",
-                    "provider": "lightweight-ai",
-                    "enabled": True,
-                    "status": "available",
-                    "ollama_model": "lightweight-ai",
-                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "intelligent_analysis"],
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": local_available,
+                    "status": "available" if local_available else "unavailable",
+                    "ollama_model": "llama3.2:3b",
+                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
                     "fusion_capable": False,
-                    "reason": None
+                    "reason": "Local model via tunnel" if local_available else "Tunnel not connected"
                 },
                 {
                     "id": "ethos-code",
                     "name": "Ethos Code (7B)",
-                    "type": "cloud",
-                    "provider": "lightweight-ai",
-                    "enabled": True,
-                    "status": "available",
-                    "ollama_model": "lightweight-ai",
+                    "type": "local",
+                    "provider": "ollama",
+                    "enabled": local_available,
+                    "status": "available" if local_available else "unavailable",
+                    "ollama_model": "codellama:7b",
                     "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
                     "fusion_capable": False,
-                    "reason": None
+                    "reason": "Local model via tunnel" if local_available else "Tunnel not connected"
                 },
                 {
                     "id": "ethos-pro",
@@ -432,41 +361,43 @@ async def get_models():
     return response
 
 def get_fallback_models():
-    """Fallback models using lightweight AI"""
+    """Fallback models when local models not available"""
+    local_available = hybrid_ai.check_local_models()
+    
     return {
         "models": [
             {
                 "id": "ethos-light",
                 "name": "Ethos Light (3B)",
-                "type": "cloud",
-                "provider": "lightweight-ai",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "lightweight-ai",
-                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "intelligent_analysis"],
+                "type": "local",
+                "provider": "ollama",
+                "enabled": local_available,
+                "status": "available" if local_available else "unavailable",
+                "ollama_model": "llama3.2:3b",
+                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
                 "fusion_capable": False,
-                "reason": None
+                "reason": "Local model via tunnel" if local_available else "Tunnel not connected"
             },
             {
                 "id": "ethos-code",
                 "name": "Ethos Code (7B)",
-                "type": "cloud",
-                "provider": "lightweight-ai",
-                "enabled": True,
-                "status": "available",
-                "ollama_model": "lightweight-ai",
+                "type": "local",
+                "provider": "ollama",
+                "enabled": local_available,
+                "status": "available" if local_available else "unavailable",
+                "ollama_model": "codellama:7b",
                 "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
                 "fusion_capable": False,
-                "reason": None
+                "reason": "Local model via tunnel" if local_available else "Tunnel not connected"
             }
         ],
-        "total": 2,
-        "status": "available",
+        "total": 2 if local_available else 0,
+        "status": "available" if local_available else "unavailable",
         "fusion_engine": False,
         "ollama_available": True,
-        "available_models": ["lightweight-ai"],
-        "message": "Lightweight AI is available - providing intelligent responses",
-        "deployment": "cloud-only-lightweight"
+        "available_models": ["llama3.2:3b", "codellama:7b"] if local_available else [],
+        "message": "Local models available via tunnel" if local_available else "Local models not available - check tunnel connection",
+        "deployment": "hybrid-local" if local_available else "hybrid-unavailable"
     }
 
 @app.get("/api/models/status")
