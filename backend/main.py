@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.0-CLOUD-ONLY")
+app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.1-CLOUD-ONLY")
 
 # Add CORS middleware
 app.add_middleware(
