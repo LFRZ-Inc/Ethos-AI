@@ -1,27 +1,36 @@
 #!/usr/bin/env python3
 """
-Ethos AI - Real AI with Ollama Bridge
-Railway will definitely use this file
+Cloud-Only Ethos AI Main Application
+Fully cloud-based - no local server needed!
+FORCE REDEPLOY - Railway should pick up this change
+
+VERSION: 3.0.0-CLOUD-ONLY
+DEPLOYMENT: FORCE-REBUILD-REQUIRED
 """
 
-import os
+import asyncio
+import json
+import logging
 import time
 import uuid
-import requests
-import logging
 from datetime import datetime
-from fastapi import FastAPI
+from typing import Dict, List, Optional, Any
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
-import uvicorn
+import subprocess
+import os
 
-# Setup logging
+# Import the cloud fusion engine
+from cloud_fusion_engine import CloudEthosFusionEngine
+
+# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app
-app = FastAPI(title="Ethos AI", version="1.0.0")
+# Initialize FastAPI app
+app = FastAPI(title="Ethos AI - Cloud Edition", version="3.0.0-CLOUD-ONLY")
 
 # Add CORS middleware
 app.add_middleware(
@@ -36,304 +45,319 @@ app.add_middleware(
 
 # Pydantic models
 class ChatMessage(BaseModel):
-    content: Optional[str] = None
-    message: Optional[str] = None
+    content: str
     conversation_id: Optional[str] = None
     model_override: Optional[str] = None
-    use_tools: bool = True
-    
-    def get_content(self) -> str:
-        if self.content:
-            return self.content
-        elif self.message:
-            return self.message
-        else:
-            raise ValueError("Either 'content' or 'message' field is required")
+    use_tools: Optional[bool] = False
 
-# Ollama Bridge - Direct implementation
-class OllamaBridge:
-    def __init__(self):
-        # Use the new localtunnel URL that was just generated
-        self.ollama_url = "https://plastic-vampirebat-50.loca.lt"
-        self.model_mapping = {
-            "ethos-light": "llama3.2:3b",
-            "ethos-code": "codellama:7b", 
-            "ethos-pro": "gpt-oss:20b",
-            "ethos-creative": "llama3.1:70b"
-        }
-        self.headers = {"User-Agent": "Ethos-AI-Cloud/1.0"}
-    
-    def is_available(self) -> bool:
-        try:
-            response = requests.get(f"{self.ollama_url}/api/tags", headers=self.headers, timeout=5)
-            return response.status_code == 200
-        except:
-            return False
-    
-    def get_available_models(self) -> list:
-        try:
-            response = requests.get(f"{self.ollama_url}/api/tags", headers=self.headers, timeout=5)
-            if response.status_code == 200:
-                data = response.json()
-                return [model["name"] for model in data.get("models", [])]
-            return []
-        except:
-            return []
-    
-    def generate_response(self, message: str, model_id: str = "ethos-light") -> Optional[str]:
-        try:
-            ollama_model = self.model_mapping.get(model_id.lower(), "llama3.2:3b")
-            available_models = self.get_available_models()
-            
-            if ollama_model not in available_models:
-                logger.warning(f"Model {ollama_model} not available. Available: {available_models}")
-                return None
-            
-            payload = {
-                "model": ollama_model,
-                "prompt": message,
-                "stream": False
-            }
-            
-            # Use longer timeout for larger models
-            if "70b" in ollama_model:
-                timeout = 300  # 5 minutes for 70B models
-            elif "20b" in ollama_model:
-                timeout = 180  # 3 minutes for 20B models
-            elif "7b" in ollama_model:
-                timeout = 120  # 2 minutes for 7B models
-            else:
-                timeout = 60   # 1 minute for 3B models
-                
-            logger.info(f"Requesting response from {ollama_model} with {timeout}s timeout")
-            
-            response = requests.post(
-                f"{self.ollama_url}/api/generate", 
-                json=payload, 
-                headers=self.headers,
-                timeout=timeout
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                ai_response = result.get("response", "")
-                logger.info(f"Successfully got response from {ollama_model}")
-                return ai_response
-            else:
-                logger.error(f"Ollama request failed: {response.status_code}")
-                return None
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout getting response from {ollama_model}")
-            return None
-        except Exception as e:
-            logger.error(f"Error generating response: {e}")
-            return None
+class ChatResponse(BaseModel):
+    message: str
+    conversation_id: str
+    timestamp: str
+    model_used: str
+    confidence: float
+    processing_time: float
+    capabilities_used: List[str]
+    synthesis_reasoning: str
 
-# Initialize Ollama bridge
+# Initialize the Cloud Ethos Fusion Engine
 try:
-    ollama_bridge = OllamaBridge()
-    OLLAMA_AVAILABLE = ollama_bridge.is_available()
-    logger.info(f"Ollama bridge initialized. Available: {OLLAMA_AVAILABLE}")
+    fusion_engine = CloudEthosFusionEngine()
+    FUSION_AVAILABLE = True
+    logger.info("Cloud Ethos Fusion Engine initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize Ollama bridge: {e}")
-    ollama_bridge = None
-    OLLAMA_AVAILABLE = False
+    logger.error(f"Failed to initialize Cloud Fusion Engine: {e}")
+    fusion_engine = None
+    FUSION_AVAILABLE = False
 
+def check_ollama_available():
+    """Check if ollama is available on Railway"""
+    try:
+        result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+        return result.returncode == 0
+    except:
+        return False
+
+def get_available_models():
+    """Get list of available models on Railway"""
+    try:
+        result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
+        if result.returncode == 0:
+            # Parse the output to get model names
+            lines = result.stdout.strip().split('\n')[1:]  # Skip header
+            models = []
+            for line in lines:
+                if line.strip():
+                    parts = line.split()
+                    if parts:
+                        models.append(parts[0])
+            return models
+        return []
+    except:
+        return []
+
+# Health check endpoint
 @app.get("/")
 async def root():
-    return {"message": "Ethos AI Backend is running!", "status": "healthy"}
-
-@app.get("/test")
-async def test():
-    return {"test": "working", "timestamp": time.time()}
+    ollama_available = check_ollama_available()
+    available_models = get_available_models() if ollama_available else []
+    
+    return {
+        "message": "Ethos AI - Cloud Edition",
+        "status": "healthy",
+        "version": "3.0.0-CLOUD-ONLY",
+        "fusion_available": FUSION_AVAILABLE,
+        "ollama_available": ollama_available,
+        "available_models": available_models,
+        "deployment": "cloud-only",
+        "build": "FORCE-REBUILD-COMPLETED"
+    }
 
 @app.get("/health")
 async def health_check():
+    ollama_available = check_ollama_available()
+    available_models = get_available_models() if ollama_available else []
+    
     return {
         "status": "healthy",
-        "service": "ethos-ai-backend",
-        "mode": "real-ai",
-        "ollama_available": OLLAMA_AVAILABLE,
-        "timestamp": time.time(),
-        "environment": "production"
+        "timestamp": datetime.now().isoformat(),
+        "version": "3.0.0-CLOUD-ONLY",
+        "fusion_engine": FUSION_AVAILABLE,
+        "ollama_available": ollama_available,
+        "available_models": available_models,
+        "deployment": "cloud-only",
+        "build": "FORCE-REBUILD-COMPLETED",
+        "message": "Cloud-only deployment active"
     }
 
 @app.get("/api/models")
 async def get_models():
-    if OLLAMA_AVAILABLE and ollama_bridge:
+    """Get available models with cloud fusion engine status"""
+    ollama_available = check_ollama_available()
+    available_models = get_available_models() if ollama_available else []
+    
+    if FUSION_AVAILABLE and fusion_engine and ollama_available:
         try:
-            available_models = ollama_bridge.get_available_models()
-            models_data = []
+            # Check if our required models are available
+            has_3b = "llama3.2:3b" in available_models
+            has_7b = "codellama:7b" in available_models
             
-            for ethos_id, ollama_model in ollama_bridge.model_mapping.items():
-                is_available = ollama_model in available_models
-                models_data.append({
-                    "id": ethos_id,
-                    "name": f"Ethos {ethos_id.split('-')[1].title()}",
-                    "type": "local",
+            # Create Ethos model mapping
+            ethos_models = [
+                {
+                    "id": "ethos-light",
+                    "name": "Ethos Light (3B)",
+                    "type": "cloud",
                     "provider": "ollama",
-                    "enabled": is_available,
-                    "status": "available" if is_available else "unavailable",
-                    "ollama_model": ollama_model,
-                    "capabilities": ["real_ai", "privacy_focused", "local_processing"]
-                })
+                    "enabled": has_3b,
+                    "status": "available" if has_3b else "unavailable",
+                    "ollama_model": "llama3.2:3b",
+                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
+                    "fusion_capable": True,
+                    "reason": "Model not downloaded" if not has_3b else None
+                },
+                {
+                    "id": "ethos-code",
+                    "name": "Ethos Code (7B)",
+                    "type": "cloud",
+                    "provider": "ollama",
+                    "enabled": has_7b,
+                    "status": "available" if has_7b else "unavailable",
+                    "ollama_model": "codellama:7b",
+                    "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
+                    "fusion_capable": True,
+                    "reason": "Model not downloaded" if not has_7b else None
+                },
+                {
+                    "id": "ethos-pro",
+                    "name": "Ethos Pro (20B) - Unavailable",
+                    "type": "cloud",
+                    "provider": "ollama",
+                    "enabled": False,
+                    "status": "unavailable",
+                    "ollama_model": "gpt-oss:20b",
+                    "capabilities": ["complex_reasoning", "analysis", "research"],
+                    "fusion_capable": False,
+                    "reason": "Requires 25GB+ RAM - upgrade needed"
+                },
+                {
+                    "id": "ethos-creative",
+                    "name": "Ethos Creative (70B) - Unavailable",
+                    "type": "cloud",
+                    "provider": "ollama",
+                    "enabled": False,
+                    "status": "unavailable",
+                    "ollama_model": "llama3.1:70b",
+                    "capabilities": ["creative_writing", "storytelling", "artistic_expression"],
+                    "fusion_capable": False,
+                    "reason": "Requires 45GB+ RAM - upgrade needed"
+                }
+            ]
             
-            return {
-                "models": models_data,
-                "total": len([m for m in models_data if m["enabled"]]),
-                "status": "available" if any(m["enabled"] for m in models_data) else "unavailable",
+            response_data = {
+                "models": ethos_models,
+                "total": len([m for m in ethos_models if m["enabled"]]),
+                "status": "available" if any(m["enabled"] for m in ethos_models) else "unavailable",
+                "fusion_engine": True,
                 "ollama_available": True,
-                "ollama_models": available_models
+                "available_models": available_models,
+                "message": "Cloud Ethos Fusion Engine is active - running models directly on Railway",
+                "deployment": "cloud-only"
             }
         except Exception as e:
             logger.error(f"Error getting models: {e}")
-            return get_fallback_models()
+            response_data = get_fallback_models()
     else:
-        return get_fallback_models()
+        response_data = get_fallback_models()
+    
+    response = JSONResponse(content=response_data)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 def get_fallback_models():
-    """Fallback models when Ollama is not available"""
+    """Fallback models when fusion engine is not available"""
     return {
         "models": [
             {
                 "id": "ethos-light",
-                "name": "Ethos Light",
-                "type": "local",
+                "name": "Ethos Light (3B)",
+                "type": "cloud",
                 "provider": "ollama",
                 "enabled": False,
                 "status": "unavailable",
                 "ollama_model": "llama3.2:3b",
-                "capabilities": ["real_ai", "privacy_focused", "local_processing"]
+                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
+                "fusion_capable": False,
+                "reason": "Fusion engine not available"
             },
             {
                 "id": "ethos-code",
-                "name": "Ethos Code",
-                "type": "local",
+                "name": "Ethos Code (7B)",
+                "type": "cloud",
                 "provider": "ollama",
                 "enabled": False,
                 "status": "unavailable",
                 "ollama_model": "codellama:7b",
-                "capabilities": ["real_ai", "privacy_focused", "local_processing"]
-            },
-            {
-                "id": "ethos-pro",
-                "name": "Ethos Pro",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": False,
-                "status": "unavailable",
-                "ollama_model": "gpt-oss:20b",
-                "capabilities": ["real_ai", "privacy_focused", "local_processing"]
-            },
-            {
-                "id": "ethos-creative",
-                "name": "Ethos Creative",
-                "type": "local",
-                "provider": "ollama",
-                "enabled": False,
-                "status": "unavailable",
-                "ollama_model": "llama3.1:70b",
-                "capabilities": ["real_ai", "privacy_focused", "local_processing"]
+                "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
+                "fusion_capable": False,
+                "reason": "Fusion engine not available"
             }
         ],
         "total": 0,
         "status": "unavailable",
-        "ollama_available": False,
-        "ollama_models": []
+        "fusion_engine": False,
+        "ollama_available": check_ollama_available(),
+        "available_models": get_available_models() if check_ollama_available() else [],
+        "message": "Cloud fusion engine not available",
+        "deployment": "cloud-only"
     }
 
 @app.get("/api/models/status")
-async def get_model_status():
-    if OLLAMA_AVAILABLE and ollama_bridge:
+async def get_models_status():
+    """Get detailed model status"""
+    ollama_available = check_ollama_available()
+    available_models = get_available_models() if ollama_available else []
+    
+    if FUSION_AVAILABLE and fusion_engine and ollama_available:
         try:
-            available_models = ollama_bridge.get_available_models()
-            models_status = {}
+            # Count enabled models
+            enabled_count = 0
+            if "llama3.2:3b" in available_models:
+                enabled_count += 1
+            if "codellama:7b" in available_models:
+                enabled_count += 1
             
-            for ethos_id, ollama_model in ollama_bridge.model_mapping.items():
-                is_available = ollama_model in available_models
-                models_status[ethos_id] = {
-                    "model_id": ethos_id,
-                    "model_name": f"Ethos {ethos_id.split('-')[1].title()}",
-                    "is_loaded": is_available,
-                    "device": "local",
-                    "cuda_available": False,
-                    "load_time": 0.1,
-                    "last_used": time.time(),
-                    "error_count": 0,
-                    "avg_response_time": 1.0
-                }
-            
-            return {
+            status_data = {
                 "available": True,
-                "system_status": {
-                    "total_models": len(models_status),
-                    "healthy_models": len([m for m in models_status.values() if m["is_loaded"]]),
-                    "available_models": [k for k, v in models_status.items() if v["is_loaded"]],
-                    "system_status": "available",
-                    "models": models_status
-                },
-                "models": models_status
+                "total_models": 4,  # Total Ethos models
+                "healthy_models": enabled_count,
+                "available_models": available_models,
+                "fusion_engine": True,
+                "ollama_available": True,
+                "message": f"Cloud Ethos Fusion Engine active with {enabled_count} models available",
+                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning", "programming", "debugging", "code_generation", "technical_analysis"],
+                "deployment": "cloud-only"
             }
         except Exception as e:
             logger.error(f"Error getting model status: {e}")
-            return get_fallback_status()
+            status_data = get_fallback_status()
     else:
-        return get_fallback_status()
+        status_data = get_fallback_status()
+    
+    response = JSONResponse(content=status_data)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    return response
 
 def get_fallback_status():
-    """Fallback status when Ollama is not available"""
+    """Fallback status when fusion engine is not available"""
     return {
         "available": False,
-        "system_status": {
-            "total_models": 0,
-            "healthy_models": 0,
-            "available_models": [],
-            "system_status": "unavailable",
-            "models": {}
-        },
-        "models": {}
+        "total_models": 0,
+        "healthy_models": 0,
+        "available_models": [],
+        "fusion_engine": False,
+        "ollama_available": check_ollama_available(),
+        "message": "Cloud fusion engine not available",
+        "capabilities": [],
+        "deployment": "cloud-only"
     }
 
 @app.post("/api/chat")
-async def chat(message: ChatMessage):
-    """Chat endpoint - Real AI responses"""
+async def chat_endpoint(request: ChatMessage):
+    """Main chat endpoint using Cloud Ethos Fusion Engine"""
+    start_time = time.time()
+    
+    if not FUSION_AVAILABLE or not fusion_engine:
+        raise HTTPException(
+            status_code=503, 
+            detail="Cloud Ethos Fusion Engine is not available."
+        )
+    
+    if not check_ollama_available():
+        raise HTTPException(
+            status_code=503,
+            detail="Ollama is not available on Railway. Models may not be downloaded."
+        )
+    
     try:
-        content = message.get_content()
-        model_id = message.model_override or "ethos-light"
+        # Generate unified response using fusion engine
+        ethos_response = await fusion_engine.generate_unified_response(
+            message=request.content,
+            context={"model_override": request.model_override}
+        )
         
-        logger.info(f"Received chat message: {content[:50]}... with model: {model_id}")
+        processing_time = time.time() - start_time
         
-        if OLLAMA_AVAILABLE and ollama_bridge:
-            # Try to get real AI response
-            ai_response = ollama_bridge.generate_response(content, model_id)
-            
-            if ai_response:
-                response_data = {
-                    "content": ai_response,
-                    "model_used": model_id,
-                    "timestamp": datetime.now().isoformat(),
-                    "privacy": "100% local processing",
-                    "mode": "real-ai"
-                }
-            else:
-                response_data = {
-                    "content": "Error: Could not get response from Ollama. Please check your local setup and tunnel connection.",
-                    "model_used": model_id,
-                    "timestamp": datetime.now().isoformat(),
-                    "privacy": "100% local processing",
-                    "mode": "error"
-                }
-        else:
-            response_data = {
-                "content": "Error: Ollama is not available. Please check your local Ollama setup and tunnel connection.",
-                "model_used": model_id,
-                "timestamp": datetime.now().isoformat(),
-                "privacy": "100% local processing",
-                "mode": "error"
-            }
+        # Create response
+        chat_response = ChatResponse(
+            message=ethos_response.final_response,
+            conversation_id=request.conversation_id or str(uuid.uuid4()),
+            timestamp=datetime.now().isoformat(),
+            model_used=", ".join(ethos_response.source_models),
+            confidence=ethos_response.confidence,
+            processing_time=processing_time,
+            capabilities_used=ethos_response.capabilities_used,
+            synthesis_reasoning=ethos_response.reasoning
+        )
         
-        # Add explicit CORS headers to fix the CORS error
-        from fastapi.responses import JSONResponse
+        response_data = {
+            "message": chat_response.message,
+            "conversation_id": chat_response.conversation_id,
+            "timestamp": chat_response.timestamp,
+            "model_used": chat_response.model_used,
+            "confidence": chat_response.confidence,
+            "processing_time": chat_response.processing_time,
+            "capabilities_used": chat_response.capabilities_used,
+            "synthesis_reasoning": chat_response.reasoning,
+            "fusion_engine": True,
+            "deployment": "cloud-only",
+            "status": "success"
+        }
+        
         response = JSONResponse(content=response_data)
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
@@ -342,41 +366,98 @@ async def chat(message: ChatMessage):
         
     except Exception as e:
         logger.error(f"Error in chat endpoint: {e}")
-        error_data = {
-            "content": f"Error: {str(e)}",
-            "model_used": model_id if 'model_id' in locals() else "unknown",
-            "timestamp": datetime.now().isoformat(),
-            "privacy": "100% local processing",
-            "mode": "error"
-        }
-        
-        # Add explicit CORS headers to error response too
-        from fastapi.responses import JSONResponse
-        response = JSONResponse(content=error_data)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        return response
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating response: {str(e)}"
+        )
 
 @app.post("/api/conversations")
 async def create_conversation():
     """Create a new conversation"""
     conversation_id = str(uuid.uuid4())
     return {
-        "id": conversation_id,
-        "title": f"New Conversation {conversation_id[:8]}",
+        "conversation_id": conversation_id,
         "created_at": datetime.now().isoformat(),
-        "messages": []
+        "status": "created",
+        "deployment": "cloud-only"
     }
 
 @app.get("/api/conversations")
 async def get_conversations():
-    """Get all conversations"""
+    """Get conversation history (placeholder)"""
     return {
         "conversations": [],
-        "total": 0
+        "total": 0,
+        "message": "Conversation history not implemented yet",
+        "deployment": "cloud-only"
     }
 
+@app.get("/api/fusion/status")
+async def get_fusion_status():
+    """Get detailed fusion engine status"""
+    if FUSION_AVAILABLE and fusion_engine:
+        try:
+            learning_summary = fusion_engine.get_learning_summary()
+            return {
+                "fusion_engine": True,
+                "status": "active",
+                "total_interactions": learning_summary["total_interactions"],
+                "performance_trend": learning_summary["performance_trends"]["trend"],
+                "capabilities_used": len(learning_summary["capability_insights"]),
+                "available_models": get_available_models(),
+                "ollama_available": check_ollama_available(),
+                "message": "Cloud Ethos Fusion Engine is running and learning",
+                "deployment": "cloud-only"
+            }
+        except Exception as e:
+            logger.error(f"Error getting fusion status: {e}")
+            return {
+                "fusion_engine": True,
+                "status": "error",
+                "message": f"Error getting status: {str(e)}",
+                "deployment": "cloud-only"
+            }
+    else:
+        return {
+            "fusion_engine": False,
+            "status": "unavailable",
+            "message": "Cloud fusion engine not initialized",
+            "deployment": "cloud-only"
+        }
+
+@app.post("/api/download-models")
+async def download_models():
+    """Trigger model download on Railway"""
+    try:
+        # Run the download script
+        result = subprocess.run(
+            ['python', 'download_models_to_railway.py'],
+            capture_output=True,
+            text=True,
+            timeout=3600  # 1 hour timeout
+        )
+        
+        if result.returncode == 0:
+            return {
+                "status": "success",
+                "message": "Models downloaded successfully",
+                "output": result.stdout,
+                "deployment": "cloud-only"
+            }
+        else:
+            return {
+                "status": "error",
+                "message": "Failed to download models",
+                "error": result.stderr,
+                "deployment": "cloud-only"
+            }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error downloading models: {str(e)}",
+            "deployment": "cloud-only"
+        }
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    uvicorn.run(app, host="0.0.0.0", port=port) 
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 
