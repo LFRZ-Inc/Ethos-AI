@@ -251,7 +251,7 @@ class CloudAISystem:
                 ['ollama', 'run', ollama_model, user_message],
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minutes timeout
+                timeout=300  # 5 minutes timeout for cloud models
             )
             
             if result.returncode == 0:
