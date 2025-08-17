@@ -496,28 +496,54 @@ async def get_fusion_status():
 async def download_models():
     """Trigger model download on Railway"""
     try:
-        # Run the download script
-        result = subprocess.run(
-            ['python', 'download_models_to_railway.py'],
+        logger.info("🚀 Starting model download on Railway...")
+        
+        # Download 3B model
+        logger.info("📦 Downloading llama3.2:3b...")
+        result_3b = subprocess.run(
+            ['ollama', 'pull', 'llama3.2:3b'],
             capture_output=True,
             text=True,
-            timeout=3600  # 1 hour timeout
+            timeout=1800  # 30 minutes timeout
         )
         
-        if result.returncode == 0:
-            return {
-                "status": "success",
-                "message": "Models downloaded successfully",
-                "output": result.stdout,
-                "deployment": "cloud-only"
-            }
+        if result_3b.returncode == 0:
+            logger.info("✅ llama3.2:3b downloaded successfully")
         else:
-            return {
-                "status": "error",
-                "message": "Failed to download models",
-                "error": result.stderr,
-                "deployment": "cloud-only"
-            }
+            logger.error(f"❌ Failed to download llama3.2:3b: {result_3b.stderr}")
+        
+        # Download 7B model
+        logger.info("📦 Downloading codellama:7b...")
+        result_7b = subprocess.run(
+            ['ollama', 'pull', 'codellama:7b'],
+            capture_output=True,
+            text=True,
+            timeout=1800  # 30 minutes timeout
+        )
+        
+        if result_7b.returncode == 0:
+            logger.info("✅ codellama:7b downloaded successfully")
+        else:
+            logger.error(f"❌ Failed to download codellama:7b: {result_7b.stderr}")
+        
+        # Check final status
+        available_models = get_available_models()
+        
+        return {
+            "status": "success",
+            "message": "Model download completed",
+            "available_models": available_models,
+            "llama3.2_3b_success": result_3b.returncode == 0,
+            "codellama_7b_success": result_7b.returncode == 0,
+            "deployment": "cloud-only"
+        }
+        
+    except subprocess.TimeoutExpired:
+        return {
+            "status": "timeout",
+            "message": "Model download timed out (30 minutes)",
+            "deployment": "cloud-only"
+        }
     except Exception as e:
         return {
             "status": "error",
