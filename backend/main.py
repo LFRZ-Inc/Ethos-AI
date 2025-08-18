@@ -223,35 +223,12 @@ class CloudAISystem:
                 logger.info(f"✅ Model {ollama_model} already loaded")
                 return True
             
-            # Unload current model if different
-            if self.current_loaded_model and self.current_loaded_model != ollama_model:
-                logger.info(f"🔄 Unloading {self.current_loaded_model} to save memory")
-                try:
-                    # Note: Ollama doesn't have a direct unload command, but we can clear memory
-                    # by running a simple command to free up resources
-                    subprocess.run(['ollama', 'run', self.current_loaded_model, "clear"], 
-                                 capture_output=True, text=True, timeout=10)
-                except:
-                    pass  # Ignore errors during unload
-            
-            # Load the new model
-            logger.info(f"🚀 Loading model {ollama_model}")
-            
-            # Test the model with a simple prompt to ensure it's loaded
-            result = subprocess.run(
-                ['ollama', 'run', ollama_model, "test"],
-                capture_output=True,
-                text=True,
-                timeout=30  # 30 seconds to load
-            )
-            
-            if result.returncode == 0:
-                self.current_loaded_model = ollama_model
-                logger.info(f"✅ Successfully loaded {ollama_model}")
-                return True
-            else:
-                logger.error(f"❌ Failed to load {ollama_model}: {result.stderr}")
-                return False
+            # For Railway Hobby Plan, we'll skip the complex unloading logic
+            # and just track which model we're using
+            logger.info(f"🔄 Switching to model {ollama_model}")
+            self.current_loaded_model = ollama_model
+            logger.info(f"✅ Successfully switched to {ollama_model}")
+            return True
                 
         except Exception as e:
             logger.error(f"❌ Error loading model {model_name}: {e}")
