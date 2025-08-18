@@ -362,7 +362,15 @@ install_ollama_on_railway()
 # Force download all 1B models on startup
 if OLLAMA_AVAILABLE:
     logger.info("🚀 Starting automatic download of all 1B models...")
-    download_models_to_railway()
+    # Reset the flags to force download
+    global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
+    MODELS_DOWNLOADED = False
+    DOWNLOAD_IN_PROGRESS = False
+    success = download_models_to_railway()
+    if success:
+        logger.info("✅ All 1B models downloaded successfully!")
+    else:
+        logger.warning("⚠️ Some models failed to download")
 
 # API Endpoints
 @app.get("/")
