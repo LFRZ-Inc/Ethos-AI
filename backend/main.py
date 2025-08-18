@@ -359,6 +359,11 @@ cloud_ai = CloudAISystem()
 # Install Ollama on startup
 install_ollama_on_railway()
 
+# Force download all 1B models on startup
+if OLLAMA_AVAILABLE:
+    logger.info("🚀 Starting automatic download of all 1B models...")
+    download_models_to_railway()
+
 # API Endpoints
 @app.get("/")
 async def root():
