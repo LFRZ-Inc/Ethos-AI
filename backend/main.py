@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.1-CLOUD-ONLY")
+app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.2-DYNAMIC-1B")
 
 # Add CORS middleware
 app.add_middleware(
@@ -109,18 +109,19 @@ def install_ollama_on_railway():
 
 # Download models to Railway
 def download_models_to_railway():
-    """Download both 3B and 7B models to Railway to test which works"""
+    """Download 1B models to Railway for dynamic loading"""
     global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
     
     if MODELS_DOWNLOADED or DOWNLOAD_IN_PROGRESS:
         return MODELS_DOWNLOADED
     
     DOWNLOAD_IN_PROGRESS = True
-    logger.info("🚀 Starting model downloads to Railway...")
+    logger.info("🚀 Starting 1B model downloads to Railway...")
     
     models_to_download = [
-        "llama3.2:3b",
-        "codellama:7b"
+        "sailor2:1b",    # General purpose (1.1 GB)
+        "phi:1b",        # Coding focused (~1.1 GB)
+        "llama2:1b"      # Fast responses (~1.2 GB)
     ]
     
     try:
@@ -170,12 +171,18 @@ def get_available_models():
 
 # Cloud AI System
 class CloudAISystem:
-    """Cloud AI system that runs models directly on Railway"""
+    """Cloud AI system with dynamic model management for Railway"""
     
     def __init__(self):
         self.models_ready = False
         self.available_models = []
         self.downloading = False
+        self.current_loaded_model = None
+        self.model_mapping = {
+            "ethos-light": "sailor2:1b",      # General purpose
+            "ethos-code": "phi:1b",           # Coding focused
+            "ethos-fast": "llama2:1b"         # Fast responses
+        }
         
     def initialize_models(self):
         """Initialize models on Railway"""
@@ -205,17 +212,79 @@ class CloudAISystem:
             self.available_models = get_available_models()
             return True
     
-    async def generate_response(self, user_message, model_override="ethos-light"):
-        """Generate response using available models - test both 3B and 7B"""
+    def load_model(self, model_name):
+        """Load a specific model and unload others to save memory"""
+        try:
+            # Get the actual Ollama model name
+            ollama_model = self.model_mapping.get(model_name, "sailor2:1b")
+            
+            # If this model is already loaded, no need to change
+            if self.current_loaded_model == ollama_model:
+                logger.info(f"✅ Model {ollama_model} already loaded")
+                return True
+            
+            # Unload current model if different
+            if self.current_loaded_model and self.current_loaded_model != ollama_model:
+                logger.info(f"🔄 Unloading {self.current_loaded_model} to save memory")
+                try:
+                    # Note: Ollama doesn't have a direct unload command, but we can clear memory
+                    # by running a simple command to free up resources
+                    subprocess.run(['ollama', 'run', self.current_loaded_model, "clear"], 
+                                 capture_output=True, text=True, timeout=10)
+                except:
+                    pass  # Ignore errors during unload
+            
+            # Load the new model
+            logger.info(f"🚀 Loading model {ollama_model}")
+            
+            # Test the model with a simple prompt to ensure it's loaded
+            result = subprocess.run(
+                ['ollama', 'run', ollama_model, "test"],
+                capture_output=True,
+                text=True,
+                timeout=30  # 30 seconds to load
+            )
+            
+            if result.returncode == 0:
+                self.current_loaded_model = ollama_model
+                logger.info(f"✅ Successfully loaded {ollama_model}")
+                return True
+            else:
+                logger.error(f"❌ Failed to load {ollama_model}: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error loading model {model_name}: {e}")
+            return False
+    
+    def get_best_model_for_task(self, user_message):
+        """Determine the best model based on user input"""
+        user_message_lower = user_message.lower()
         
-        # Map Ethos models to local Ollama models
-        model_mapping = {
-            "ethos-light": "llama3.2:3b",
-            "ethos-code": "codellama:7b"
-        }
+        # Check for coding-related keywords
+        coding_keywords = ["code", "program", "function", "bug", "error", "python", "javascript", 
+                          "html", "css", "java", "c++", "debug", "algorithm", "api", "database"]
         
-        # Get the requested model
-        ollama_model = model_mapping.get(model_override, "llama3.2:3b")
+        if any(keyword in user_message_lower for keyword in coding_keywords):
+            return "ethos-code"  # Use phi:1b for coding tasks
+        
+        # Check for general conversation
+        general_keywords = ["hello", "hi", "how are you", "weather", "time", "help", "explain"]
+        if any(keyword in user_message_lower for keyword in general_keywords):
+            return "ethos-light"  # Use sailor2:1b for general tasks
+        
+        # Default to fast model for quick responses
+        return "ethos-fast"  # Use llama2:1b for speed
+    
+    async def generate_response(self, user_message, model_override="auto"):
+        """Generate response using dynamic model loading"""
+        
+        # Auto-select best model if not specified
+        if model_override == "auto":
+            model_override = self.get_best_model_for_task(user_message)
+        
+        # Get the actual Ollama model name
+        ollama_model = self.model_mapping.get(model_override, "sailor2:1b")
         
         # Check if model is available
         available_models = get_available_models()
@@ -243,15 +312,22 @@ class CloudAISystem:
                     detail=f"Timeout downloading model {ollama_model}"
                 )
         
-        logger.info(f"🚀 Calling cloud model {ollama_model}")
+        # Load the model (this will unload others to save memory)
+        if not self.load_model(model_override):
+            raise HTTPException(
+                status_code=503,
+                detail=f"Failed to load model {ollama_model}"
+            )
+        
+        logger.info(f"🚀 Calling model {ollama_model}")
         
         try:
-            # Use subprocess to call Ollama with shorter timeout for Railway
+            # Use subprocess to call Ollama with optimized timeout for Railway
             result = subprocess.run(
                 ['ollama', 'run', ollama_model, user_message],
                 capture_output=True,
                 text=True,
-                timeout=120  # 2 minutes timeout for Railway Hobby Plan
+                timeout=60  # 1 minute timeout for 1B models
             )
             
             if result.returncode == 0:
@@ -260,9 +336,11 @@ class CloudAISystem:
                 return {
                     "message": response_text,
                     "model_used": model_override,
+                    "ollama_model": ollama_model,
                     "confidence": 0.95,
                     "source": "cloud_model",
-                    "cloud": True
+                    "cloud": True,
+                    "dynamic_loading": True
                 }
             else:
                 logger.error(f"❌ Ollama error: {result.stderr}")
@@ -275,7 +353,7 @@ class CloudAISystem:
             logger.error("❌ Request timeout - Railway resource constraints")
             raise HTTPException(
                 status_code=503,
-                detail="Request timeout - Railway Hobby Plan may not have sufficient resources for this model"
+                detail="Request timeout - Railway Hobby Plan may not have sufficient resources"
             )
         except Exception as e:
             logger.error(f"❌ Cloud model error: {e}")
@@ -283,32 +361,6 @@ class CloudAISystem:
                 status_code=503,
                 detail=f"Cloud model error: {str(e)}"
             )
-    
-    def generate_intelligent_response(self, user_message, model_override):
-        """Generate intelligent responses when models are constrained"""
-        user_message_lower = user_message.lower()
-        
-        # Programming/code responses for ethos-code
-        if model_override == "ethos-code" or any(word in user_message_lower for word in ["code", "program", "function", "bug", "error", "python", "javascript", "html", "css"]):
-            if "hello" in user_message_lower or "hi" in user_message_lower:
-                return "Hello! I'm Ethos AI, your coding assistant. I can help you with programming questions, debugging, code generation, and technical analysis. What would you like to work on today?"
-            elif "help" in user_message_lower:
-                return "I'm here to help with your programming needs! I can assist with code generation, debugging, explaining concepts, optimizing code, and more. Just let me know what you're working on."
-            else:
-                return f"I understand you're asking about programming: '{user_message}'. As your coding assistant, I can help with code generation, debugging, explaining concepts, and technical analysis. What specific programming question do you have?"
-        
-        # General knowledge responses for ethos-light
-        else:
-            if "hello" in user_message_lower or "hi" in user_message_lower:
-                return "Hello! I'm Ethos AI, your intelligent assistant. I can help you with general knowledge, answer questions, provide explanations, and assist with various topics. How can I help you today?"
-            elif "help" in user_message_lower:
-                return "I'm here to help! I can answer questions, explain concepts, provide information, and assist with various topics. What would you like to know about?"
-            elif "weather" in user_message_lower:
-                return "I can't check real-time weather data, but I can help you understand weather patterns, climate science, or answer questions about meteorology. What would you like to know?"
-            elif "time" in user_message_lower:
-                return "I can't tell you the exact current time, but I can help you with time-related questions, time zones, or time calculations. What would you like to know?"
-            else:
-                return f"I understand you said: '{user_message}'. I'm here to help with your questions and provide information. What would you like to know more about?"
 
 # Initialize cloud AI system
 cloud_ai = CloudAISystem()
@@ -353,34 +405,50 @@ async def get_models():
     try:
         if OLLAMA_AVAILABLE:
             available_models = get_available_models()
-            has_3b = "llama3.2:3b" in available_models
-            has_7b = "codellama:7b" in available_models
+            has_sailor = "sailor2:1b" in available_models
+            has_phi = "phi:1b" in available_models
+            has_llama2 = "llama2:1b" in available_models
             
-            # Create Ethos model mapping - test both 3B and 7B models
+            # Create Ethos model mapping - dynamic 1B models
             ethos_models = [
                 {
                     "id": "ethos-light",
-                    "name": "Ethos Light (3B)",
+                    "name": "Ethos Light (1B)",
                     "type": "cloud",
                     "provider": "ollama",
-                    "enabled": has_3b,
-                    "status": "available" if has_3b else "downloading",
-                    "ollama_model": "llama3.2:3b",
-                    "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
+                    "enabled": has_sailor,
+                    "status": "available" if has_sailor else "downloading",
+                    "ollama_model": "sailor2:1b",
+                    "capabilities": ["general_knowledge", "multilingual", "conversation"],
                     "fusion_capable": False,
-                    "reason": "Real 3B model on Railway"
+                    "reason": "Dynamic 1B model - General purpose",
+                    "size": "1.1 GB"
                 },
                 {
                     "id": "ethos-code",
-                    "name": "Ethos Code (7B)",
+                    "name": "Ethos Code (1B)",
                     "type": "cloud",
                     "provider": "ollama",
-                    "enabled": has_7b,
-                    "status": "available" if has_7b else "downloading",
-                    "ollama_model": "codellama:7b",
+                    "enabled": has_phi,
+                    "status": "available" if has_phi else "downloading",
+                    "ollama_model": "phi:1b",
                     "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
                     "fusion_capable": False,
-                    "reason": "Real 7B model on Railway"
+                    "reason": "Dynamic 1B model - Coding focused",
+                    "size": "1.1 GB"
+                },
+                {
+                    "id": "ethos-fast",
+                    "name": "Ethos Fast (1B)",
+                    "type": "cloud",
+                    "provider": "ollama",
+                    "enabled": has_llama2,
+                    "status": "available" if has_llama2 else "downloading",
+                    "ollama_model": "llama2:1b",
+                    "capabilities": ["quick_responses", "basic_reasoning", "fast_inference"],
+                    "fusion_capable": False,
+                    "reason": "Dynamic 1B model - Fast responses",
+                    "size": "1.2 GB"
                 }
             ]
             
@@ -415,27 +483,42 @@ def get_fallback_models():
         "models": [
             {
                 "id": "ethos-light",
-                "name": "Ethos Light (3B)",
+                "name": "Ethos Light (1B)",
                 "type": "cloud",
                 "provider": "ollama",
                 "enabled": False,
                 "status": "unavailable",
-                "ollama_model": "llama3.2:3b",
-                "capabilities": ["general_knowledge", "quick_responses", "basic_reasoning"],
+                "ollama_model": "sailor2:1b",
+                "capabilities": ["general_knowledge", "multilingual", "conversation"],
                 "fusion_capable": False,
-                "reason": "Ollama not available"
+                "reason": "Ollama not available",
+                "size": "1.1 GB"
             },
             {
                 "id": "ethos-code",
-                "name": "Ethos Code (7B)",
+                "name": "Ethos Code (1B)",
                 "type": "cloud",
                 "provider": "ollama",
                 "enabled": False,
                 "status": "unavailable",
-                "ollama_model": "codellama:7b",
+                "ollama_model": "phi:1b",
                 "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
                 "fusion_capable": False,
-                "reason": "Ollama not available"
+                "reason": "Ollama not available",
+                "size": "1.1 GB"
+            },
+            {
+                "id": "ethos-fast",
+                "name": "Ethos Fast (1B)",
+                "type": "cloud",
+                "provider": "ollama",
+                "enabled": False,
+                "status": "unavailable",
+                "ollama_model": "llama2:1b",
+                "capabilities": ["quick_responses", "basic_reasoning", "fast_inference"],
+                "fusion_capable": False,
+                "reason": "Ollama not available",
+                "size": "1.2 GB"
             }
         ],
         "total": 0,
@@ -463,7 +546,7 @@ async def chat_endpoint(request: Request):
     try:
         data = await request.json()
         user_message = data.get("content", "")
-        model_override = data.get("model_override", "ethos-light")
+        model_override = data.get("model_override", "auto")
         
         if not user_message.strip():
             raise HTTPException(status_code=400, detail="Message cannot be empty")
