@@ -277,17 +277,31 @@ class CloudAISystem:
                 )
                 
                 if result.returncode != 0:
+                    # If download fails, try to use a fallback model
+                    logger.warning(f"Failed to download {ollama_model}, trying fallback...")
+                    fallback_model = "sailor2:1b"  # Use sailor2:1b as fallback
+                    if fallback_model in available_models:
+                        ollama_model = fallback_model
+                        logger.info(f"Using fallback model: {fallback_model}")
+                    else:
+                        raise HTTPException(
+                            status_code=503,
+                            detail=f"Failed to download model {ollama_model} and no fallback available"
+                        )
+                else:
+                    logger.info(f"✅ {ollama_model} downloaded successfully")
+            except subprocess.TimeoutExpired:
+                # If download times out, try to use a fallback model
+                logger.warning(f"Timeout downloading {ollama_model}, trying fallback...")
+                fallback_model = "sailor2:1b"  # Use sailor2:1b as fallback
+                if fallback_model in available_models:
+                    ollama_model = fallback_model
+                    logger.info(f"Using fallback model: {fallback_model}")
+                else:
                     raise HTTPException(
                         status_code=503,
-                        detail=f"Failed to download model {ollama_model}: {result.stderr}"
+                        detail=f"Timeout downloading model {ollama_model} and no fallback available"
                     )
-                
-                logger.info(f"✅ {ollama_model} downloaded successfully")
-            except subprocess.TimeoutExpired:
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Timeout downloading model {ollama_model}"
-                )
         
         # Load the model (this will unload others to save memory)
         if not self.load_model(model_override):
