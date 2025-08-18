@@ -25,7 +25,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.3-DYNAMIC-1B")
+app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.4-DOWNLOAD-1B")
 
 # Add CORS middleware
 app.add_middleware(
@@ -112,7 +112,7 @@ def download_models_to_railway():
     """Download 1B models to Railway for dynamic loading"""
     global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
     
-    if MODELS_DOWNLOADED or DOWNLOAD_IN_PROGRESS:
+    if DOWNLOAD_IN_PROGRESS:
         return MODELS_DOWNLOADED
     
     DOWNLOAD_IN_PROGRESS = True
