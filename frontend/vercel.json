@@ -30,6 +30,6 @@
     }
   },
   "env": {
-    "VITE_API_BASE_URL": "https://ethos-ai-test.loca.lt"
+    "VITE_API_BASE_URL": "https://cooking-ethos-ai-production-6bfd.up.railway.app"
   }
 } 
