@@ -2,11 +2,18 @@
 // Updated for Vercel deployment with TypeScript fixes
 // Force Vercel to use latest commit with TypeScript fixes
 // Deployment timestamp: 2024-12-19 23:30:00 UTC
+// CACHE BUST: 2024-12-19 23:45:00 UTC - Force LocalTunnel for Vercel
 const getApiBaseUrl = () => {
   // Check for Vite environment variable first
   if (import.meta.env.VITE_API_BASE_URL) {
     console.log('Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
     return import.meta.env.VITE_API_BASE_URL;
+  }
+  
+  // Force LocalTunnel for Vercel deployment
+  if (window.location.hostname.includes('vercel.app')) {
+    console.log('Vercel detected - forcing LocalTunnel URL');
+    return 'https://ethos-ai-test.loca.lt';
   }
   
   // If we're on the same machine, use localhost
@@ -15,11 +22,7 @@ const getApiBaseUrl = () => {
     return 'http://127.0.0.1:8000';
   }
   
-  // For Vercel deployment, use LocalTunnel backend for full functionality
-  if (window.location.hostname.includes('vercel.app')) {
-    console.log('Using LocalTunnel backend for Vercel deployment');
-    return 'https://ethos-ai-test.loca.lt';
-  }
+
   
   // For Railway deployment, use LocalTunnel backend for full functionality
   if (window.location.hostname.includes('railway.app') || 
@@ -34,6 +37,12 @@ const getApiBaseUrl = () => {
 };
 
 export const API_BASE_URL = getApiBaseUrl();
+
+// Force LocalTunnel for Vercel deployment - override any cached values
+if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+  console.log('OVERRIDE: Forcing LocalTunnel URL for Vercel deployment');
+  // This will ensure we always use LocalTunnel for Vercel
+}
 
 // API Endpoints
 export const API_ENDPOINTS = {
