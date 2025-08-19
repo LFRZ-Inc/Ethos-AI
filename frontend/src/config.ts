@@ -13,19 +13,19 @@ const getApiBaseUrl = () => {
     return 'http://127.0.0.1:8000';
   }
   
-  // For Vercel deployment, always use Railway backend
+  // For Vercel deployment, use LocalTunnel backend for full functionality
   if (window.location.hostname.includes('vercel.app')) {
-    return 'https://cooking-ethos-ai-production-6bfd.up.railway.app';
+    return 'https://ethos-ai-test.loca.lt';
   }
   
-  // For Railway deployment, use the Railway backend URL
+  // For Railway deployment, use LocalTunnel backend for full functionality
   if (window.location.hostname.includes('railway.app') || 
       window.location.hostname.includes('ethos-ai-backend')) {
-    return 'https://cooking-ethos-ai-production-6bfd.up.railway.app';
+    return 'https://ethos-ai-test.loca.lt';
   }
   
-  // Default fallback to Railway backend
-  return 'https://cooking-ethos-ai-production-6bfd.up.railway.app';
+  // Default fallback to LocalTunnel backend for full functionality
+  return 'https://ethos-ai-test.loca.lt';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
