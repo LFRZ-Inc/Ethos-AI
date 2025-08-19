@@ -4,9 +4,13 @@ Ultra-simplified version for Railway deployment
 """
 import os
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 
 app = Flask(__name__)
+
+# Add CORS support
+CORS(app, origins=["*"], allow_headers=["*"], methods=["*"])
 
 # LocalTunnel backend URL
 LOCALTUNNEL_URL = "https://ethos-ai-test.loca.lt"
@@ -42,7 +46,9 @@ def health():
 def proxy_request(path):
     """Proxy all API requests to LocalTunnel"""
     try:
-        target_url = f"{LOCALTUNNEL_URL}/{path}"
+        # Clean the path to avoid double slashes
+        clean_path = path.lstrip('/')
+        target_url = f"{LOCALTUNNEL_URL}/{clean_path}"
         
         # Get request body
         body = None
