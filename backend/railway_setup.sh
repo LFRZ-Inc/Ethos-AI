@@ -1,25 +1,34 @@
 #!/bin/bash
-# Railway Setup Script - Install Ollama
 
-echo "🚀 Railway Setup: Installing Ollama..."
+# Railway startup script for Ethos AI
+echo "🚀 Starting Ethos AI on Railway..."
 
-# Check if Ollama is already installed
-if command -v ollama &> /dev/null; then
-    echo "✅ Ollama already installed"
-    ollama --version
-else
+# Install Ollama if not already installed
+if ! command -v ollama &> /dev/null; then
     echo "📦 Installing Ollama..."
-    # Install Ollama
     curl -fsSL https://ollama.ai/install.sh | sh
-    
-    # Verify installation
-    if command -v ollama &> /dev/null; then
-        echo "✅ Ollama installed successfully"
-        ollama --version
-    else
-        echo "❌ Ollama installation failed"
-        echo "⚠️ Continuing without Ollama..."
-    fi
+    echo "✅ Ollama installed successfully"
+else
+    echo "✅ Ollama already installed"
 fi
 
-echo "🎉 Railway setup complete!"
+# Start Ollama service in background
+echo "🚀 Starting Ollama service..."
+ollama serve &
+OLLAMA_PID=$!
+
+# Wait for Ollama to start
+echo "⏳ Waiting for Ollama to start..."
+sleep 10
+
+# Check if Ollama is running
+if kill -0 $OLLAMA_PID 2>/dev/null; then
+    echo "✅ Ollama service started successfully"
+else
+    echo "❌ Failed to start Ollama service"
+    exit 1
+fi
+
+# Start the Python application
+echo "🚀 Starting Python application..."
+exec gunicorn main:app --bind 0.0.0.0:$PORT --workers 1 --timeout 600

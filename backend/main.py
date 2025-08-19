@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Cloud-Only Ethos AI Main Application
-Fully cloud-based - models run directly on Railway!
-VERSION: 4.0.0-CLOUD-ONLY
-DEPLOYMENT: CLOUD-MODELS-ACTIVE
-OLLAMA-INSTALLATION: READY
-MODELS: 3B + 7B direct download
+Ethos AI - Multi-Model System with Device Memory
+VERSION: 5.0.0-MULTI-MODEL-MEMORY
+DEPLOYMENT: DEVICE-MEMORY-SYSTEM
+OLLAMA-INSTALLATION: MANUAL
+MODELS: phi:1b, sailor2:1b, llama2:1b, llama3.2:3b, codellama:7b
+FEATURES: Device memory, smart model selection, device linking API
 """
 
 import os
@@ -13,19 +13,22 @@ import time
 import json
 import subprocess
 import requests
+import hashlib
+import uuid
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 import logging
+from typing import Optional, Dict, List, Any
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize FastAPI app
-app = FastAPI(title="Ethos AI - Cloud Edition", version="4.0.4-DOWNLOAD-1B")
+app = FastAPI(title="Ethos AI - Multi-Model System", version="5.0.0-MULTI-MODEL-MEMORY")
 
 # Add CORS middleware
 app.add_middleware(
@@ -37,117 +40,106 @@ app.add_middleware(
 )
 
 # Global variables
-MODELS_DOWNLOADED = False
-DOWNLOAD_IN_PROGRESS = False
 OLLAMA_AVAILABLE = False
+DOWNLOAD_IN_PROGRESS = False
 
-# Install Ollama during startup
-def install_ollama_on_railway():
-    """Install Ollama if running on Railway and not already installed"""
+# Device memory storage (in-memory for now, could be file-based)
+DEVICE_MEMORIES = {}  # device_id -> memory_data
+DEVICE_LINKS = {}     # device_id -> linked_device_ids
+
+# Model configuration
+MODELS = {
+    "ethos-phi": {
+        "name": "Ethos Phi (1B)",
+        "ollama_model": "phi:1b",
+        "size": "1.1 GB",
+        "capabilities": ["programming", "debugging", "code_generation"],
+        "best_for": ["coding", "technical", "programming"],
+        "priority": 1
+    },
+    "ethos-sailor": {
+        "name": "Ethos Sailor (1B)", 
+        "ollama_model": "sailor2:1b",
+        "size": "1.1 GB",
+        "capabilities": ["general_knowledge", "multilingual", "conversation"],
+        "best_for": ["general", "conversation", "multilingual"],
+        "priority": 2
+    },
+    "ethos-fast": {
+        "name": "Ethos Fast (1B)",
+        "ollama_model": "llama2:1b", 
+        "size": "1.2 GB",
+        "capabilities": ["fast_responses", "general_knowledge"],
+        "best_for": ["quick", "fast", "simple"],
+        "priority": 3
+    },
+    "ethos-light": {
+        "name": "Ethos Light (3B)",
+        "ollama_model": "llama3.2:3b",
+        "size": "3.4 GB", 
+        "capabilities": ["better_quality", "reasoning", "analysis"],
+        "best_for": ["quality", "analysis", "reasoning"],
+        "priority": 4
+    },
+    "ethos-code": {
+        "name": "Ethos Code (7B)",
+        "ollama_model": "codellama:7b",
+        "size": "7.2 GB",
+        "capabilities": ["advanced_coding", "complex_programming", "best_quality"],
+        "best_for": ["complex_coding", "advanced", "best_quality"],
+        "priority": 5
+    }
+}
+
+# Check if Ollama is available
+def check_ollama_availability():
+    """Check if Ollama is available without installing"""
     global OLLAMA_AVAILABLE
-    if os.getenv('RAILWAY_ENVIRONMENT'):
-        logger.info("🚂 Running on Railway - checking Ollama installation")
-        try:
-            result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
-            if result.returncode == 0:
-                logger.info(f"✅ Ollama already installed: {result.stdout.strip()}")
-                OLLAMA_AVAILABLE = True
-                
-                # Start Ollama service in background
-                logger.info("🚀 Starting Ollama service...")
-                try:
-                    subprocess.Popen(['ollama', 'serve'], 
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL)
-                    logger.info("✅ Ollama service started in background")
-                    # Wait a moment for service to start
-                    import time
-                    time.sleep(5)
-                except Exception as e:
-                    logger.error(f"❌ Failed to start Ollama service: {e}")
-                
-                return True
-        except:
-            pass
-        logger.info("📦 Installing Ollama on Railway...")
-        try:
-            install_result = subprocess.run(
-                "curl -fsSL https://ollama.ai/install.sh | sh",
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            if install_result.returncode == 0:
-                logger.info("✅ Ollama installed successfully")
-                OLLAMA_AVAILABLE = True
-                
-                # Start Ollama service in background
-                logger.info("🚀 Starting Ollama service...")
-                try:
-                    subprocess.Popen(['ollama', 'serve'], 
-                                   stdout=subprocess.DEVNULL, 
-                                   stderr=subprocess.DEVNULL)
-                    logger.info("✅ Ollama service started in background")
-                    # Wait a moment for service to start
-                    import time
-                    time.sleep(5)
-                except Exception as e:
-                    logger.error(f"❌ Failed to start Ollama service: {e}")
-                
-                return True
-            else:
-                logger.error(f"❌ Ollama installation failed: {install_result.stderr}")
-                return False
-        except Exception as e:
-            logger.error(f"❌ Error installing Ollama: {e}")
+    try:
+        result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
+        if result.returncode == 0:
+            logger.info(f"✅ Ollama available: {result.stdout.strip()}")
+            OLLAMA_AVAILABLE = True
+            return True
+        else:
+            logger.warning(f"⚠️ Ollama not available: {result.stderr}")
+            OLLAMA_AVAILABLE = False
             return False
-    else:
-        logger.info("💻 Running locally - skipping Ollama installation")
-        OLLAMA_AVAILABLE = True
-        return True
+    except Exception as e:
+        logger.warning(f"⚠️ Ollama not available: {e}")
+        OLLAMA_AVAILABLE = False
+        return False
 
-# Download models to Railway
-def download_models_to_railway():
-    """Download 1B models to Railway for dynamic loading"""
-    global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
+# On-demand model download
+def download_model_on_demand(model_name):
+    """Download a specific model on-demand"""
+    global DOWNLOAD_IN_PROGRESS
     
     if DOWNLOAD_IN_PROGRESS:
-        return MODELS_DOWNLOADED
+        return False
     
     DOWNLOAD_IN_PROGRESS = True
-    logger.info("🚀 Starting 1B model downloads to Railway...")
-    
-    models_to_download = [
-        "sailor2:1b",    # General purpose (1.1 GB)
-        "phi:1b",        # Coding focused (~1.1 GB)
-        "llama2:1b"      # Fast responses (~1.2 GB)
-    ]
+    logger.info(f"📥 Downloading {model_name} on-demand...")
     
     try:
-        for model in models_to_download:
-            logger.info(f"📥 Downloading {model}...")
-            result = subprocess.run(
-                ['ollama', 'pull', model],
-                capture_output=True,
-                text=True,
-                timeout=1800  # 30 minutes per model
-            )
+        result = subprocess.run(
+            ['ollama', 'pull', model_name],
+            capture_output=True,
+            text=True,
+            timeout=1800  # 30 minutes
+        )
+        
+        if result.returncode == 0:
+            logger.info(f"✅ {model_name} downloaded successfully")
+            DOWNLOAD_IN_PROGRESS = False
+            return True
+        else:
+            logger.error(f"❌ Failed to download {model_name}: {result.stderr}")
+            DOWNLOAD_IN_PROGRESS = False
+            return False
             
-            if result.returncode == 0:
-                logger.info(f"✅ {model} downloaded successfully")
-            else:
-                logger.error(f"❌ Failed to download {model}: {result.stderr}")
-                DOWNLOAD_IN_PROGRESS = False
-                return False
-        
-        MODELS_DOWNLOADED = True
-        DOWNLOAD_IN_PROGRESS = False
-        logger.info("🎉 All models downloaded successfully!")
-        return True
-        
     except Exception as e:
-        logger.error(f"❌ Error downloading models: {e}")
+        logger.error(f"❌ Error downloading {model_name}: {e}")
         DOWNLOAD_IN_PROGRESS = False
         return False
 
@@ -169,223 +161,259 @@ def get_available_models():
         logger.error(f"Error getting models: {e}")
     return []
 
-# Cloud AI System
-class CloudAISystem:
-    """Cloud AI system with dynamic model management for Railway"""
+# Device memory management
+class DeviceMemory:
+    """Device-local memory system"""
+    
+    def __init__(self, device_id: str):
+        self.device_id = device_id
+        self.conversations = []
+        self.context = []
+        self.settings = {}
+        
+    def add_conversation(self, conversation_id: str, message: str, response: str, model: str):
+        """Add a conversation to device memory"""
+        conversation = {
+            "id": conversation_id,
+            "timestamp": datetime.now().isoformat(),
+            "message": message,
+            "response": response,
+            "model": model
+        }
+        self.conversations.append(conversation)
+        
+        # Add to context for AI
+        self.context.append({
+            "role": "user",
+            "content": message,
+            "timestamp": conversation["timestamp"]
+        })
+        self.context.append({
+            "role": "assistant", 
+            "content": response,
+            "timestamp": conversation["timestamp"]
+        })
+        
+        # Keep only last 50 conversations to manage memory
+        if len(self.conversations) > 50:
+            self.conversations = self.conversations[-50:]
+            self.context = self.context[-100:]  # Keep last 100 messages
+    
+    def get_recent_context(self, limit: int = 10) -> List[Dict]:
+        """Get recent conversation context for AI"""
+        return self.context[-limit:] if self.context else []
+    
+    def get_conversation_history(self, limit: int = 20) -> List[Dict]:
+        """Get conversation history"""
+        return self.conversations[-limit:] if self.conversations else []
+    
+    def get_linked_device_context(self, linked_device_ids: List[str]) -> List[Dict]:
+        """Get context from linked devices"""
+        linked_context = []
+        for device_id in linked_device_ids:
+            if device_id in DEVICE_MEMORIES:
+                linked_context.extend(DEVICE_MEMORIES[device_id].get_recent_context(5))
+        return linked_context
+
+def get_or_create_device_memory(device_id: str) -> DeviceMemory:
+    """Get or create device memory"""
+    if device_id not in DEVICE_MEMORIES:
+        DEVICE_MEMORIES[device_id] = DeviceMemory(device_id)
+    return DEVICE_MEMORIES[device_id]
+
+# Smart model selection
+class SmartModelSelector:
+    """Intelligent model selection based on task and available resources"""
     
     def __init__(self):
-        self.models_ready = False
-        self.available_models = []
-        self.downloading = False
         self.current_loaded_model = None
-        self.model_mapping = {
-            "ethos-light": "sailor2:1b",      # General purpose
-            "ethos-code": "phi:1b",           # Coding focused
-            "ethos-fast": "llama2:1b"         # Fast responses
-        }
+        self.model_usage_stats = {}
         
-    def initialize_models(self):
-        """Initialize models on Railway"""
-        global MODELS_DOWNLOADED
-        
-        if not OLLAMA_AVAILABLE:
-            logger.error("❌ Ollama not available")
-            return False
-            
-        if self.downloading:
-            logger.info("📥 Models are currently being downloaded...")
-            return False
-            
-        if not MODELS_DOWNLOADED:
-            logger.info("📥 Models not downloaded yet, starting download...")
-            self.downloading = True
-            if download_models_to_railway():
-                self.models_ready = True
-                self.available_models = get_available_models()
-                self.downloading = False
-                return True
-            else:
-                self.downloading = False
-                return False
-        else:
-            self.models_ready = True
-            self.available_models = get_available_models()
-            return True
-    
-    def load_model(self, model_name):
-        """Load a specific model and unload others to save memory"""
-        try:
-            # Get the actual Ollama model name
-            ollama_model = self.model_mapping.get(model_name, "sailor2:1b")
-            
-            # If this model is already loaded, no need to change
-            if self.current_loaded_model == ollama_model:
-                logger.info(f"✅ Model {ollama_model} already loaded")
-                return True
-            
-            # For Railway Hobby Plan, we'll skip the complex unloading logic
-            # and just track which model we're using
-            logger.info(f"🔄 Switching to model {ollama_model}")
-            self.current_loaded_model = ollama_model
-            logger.info(f"✅ Successfully switched to {ollama_model}")
-            return True
-                
-        except Exception as e:
-            logger.error(f"❌ Error loading model {model_name}: {e}")
-            return False
-    
-    def get_best_model_for_task(self, user_message):
-        """Determine the best model based on user input"""
+    def select_best_model(self, user_message: str, available_models: List[str]) -> str:
+        """Select the best model for the given task"""
         user_message_lower = user_message.lower()
         
         # Check for coding-related keywords
         coding_keywords = ["code", "program", "function", "bug", "error", "python", "javascript", 
-                          "html", "css", "java", "c++", "debug", "algorithm", "api", "database"]
+                          "html", "css", "java", "c++", "debug", "algorithm", "api", "database",
+                          "class", "method", "variable", "loop", "if", "else", "try", "catch"]
         
+        # Check for complex tasks
+        complex_keywords = ["analyze", "explain", "compare", "evaluate", "design", "architecture",
+                           "optimize", "performance", "security", "scalability"]
+        
+        # Check for simple/quick tasks
+        simple_keywords = ["hello", "hi", "thanks", "ok", "yes", "no", "quick", "simple"]
+        
+        # Priority-based selection
         if any(keyword in user_message_lower for keyword in coding_keywords):
-            return "ethos-code"  # Use phi:1b for coding tasks
+            # Try 7B first, then 3B, then 1B models
+            for model_id in ["ethos-code", "ethos-light", "ethos-phi"]:
+                if MODELS[model_id]["ollama_model"] in available_models:
+                    return model_id
         
-        # Check for general conversation
-        general_keywords = ["hello", "hi", "how are you", "weather", "time", "help", "explain"]
-        if any(keyword in user_message_lower for keyword in general_keywords):
-            return "ethos-light"  # Use sailor2:1b for general tasks
+        elif any(keyword in user_message_lower for keyword in complex_keywords):
+            # Try 3B first, then 7B, then 1B
+            for model_id in ["ethos-light", "ethos-code", "ethos-sailor"]:
+                if MODELS[model_id]["ollama_model"] in available_models:
+                    return model_id
         
-        # Default to fast model for quick responses
-        return "ethos-fast"  # Use llama2:1b for speed
+        elif any(keyword in user_message_lower for keyword in simple_keywords):
+            # Use fast 1B model
+            for model_id in ["ethos-fast", "ethos-sailor", "ethos-phi"]:
+                if MODELS[model_id]["ollama_model"] in available_models:
+                    return model_id
+        
+        # Default: try best available model
+        for model_id in ["ethos-code", "ethos-light", "ethos-sailor", "ethos-phi", "ethos-fast"]:
+            if MODELS[model_id]["ollama_model"] in available_models:
+                return model_id
+        
+        # Fallback to any available model
+        for model_id, model_info in MODELS.items():
+            if model_info["ollama_model"] in available_models:
+                return model_id
+        
+        return "ethos-phi"  # Default fallback
     
-    async def generate_response(self, user_message, model_override="auto"):
-        """Generate response using dynamic model loading"""
-        
-        # Auto-select best model if not specified
-        if model_override == "auto":
-            model_override = self.get_best_model_for_task(user_message)
-        
-        # Get the actual Ollama model name
-        ollama_model = self.model_mapping.get(model_override, "sailor2:1b")
-        
-        # Check if model is available
-        available_models = get_available_models()
-        if ollama_model not in available_models:
-            # Try to download the specific model
-            logger.info(f"📥 Model {ollama_model} not found, downloading...")
-            try:
-                result = subprocess.run(
-                    ['ollama', 'pull', ollama_model],
-                    capture_output=True,
-                    text=True,
-                    timeout=1800  # 30 minutes
-                )
-                
-                if result.returncode != 0:
-                    # If download fails, try to use a fallback model
-                    logger.warning(f"Failed to download {ollama_model}, trying fallback...")
-                    fallback_model = "sailor2:1b"  # Use sailor2:1b as fallback
-                    if fallback_model in available_models:
-                        ollama_model = fallback_model
-                        logger.info(f"Using fallback model: {fallback_model}")
-                    else:
-                        raise HTTPException(
-                            status_code=503,
-                            detail=f"Failed to download model {ollama_model} and no fallback available"
-                        )
-                else:
-                    logger.info(f"✅ {ollama_model} downloaded successfully")
-            except subprocess.TimeoutExpired:
-                # If download times out, try to use a fallback model
-                logger.warning(f"Timeout downloading {ollama_model}, trying fallback...")
-                fallback_model = "sailor2:1b"  # Use sailor2:1b as fallback
-                if fallback_model in available_models:
-                    ollama_model = fallback_model
-                    logger.info(f"Using fallback model: {fallback_model}")
-                else:
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"Timeout downloading model {ollama_model} and no fallback available"
-                    )
-        
-        # Load the model (this will unload others to save memory)
-        if not self.load_model(model_override):
-            raise HTTPException(
-                status_code=503,
-                detail=f"Failed to load model {ollama_model}"
-            )
-        
-        logger.info(f"🚀 Calling model {ollama_model}")
-        
+    def load_model(self, model_id: str) -> bool:
+        """Load a specific model"""
         try:
-            # Use subprocess to call Ollama with optimized timeout for Railway
+            model_info = MODELS.get(model_id)
+            if not model_info:
+                return False
+                
+            ollama_model = model_info["ollama_model"]
+            
+            # Check if model is available
+            available_models = get_available_models()
+            if ollama_model not in available_models:
+                logger.info(f"📥 Model {ollama_model} not found, downloading on-demand...")
+                if not download_model_on_demand(ollama_model):
+                    return False
+            
+            if self.current_loaded_model == ollama_model:
+                logger.info(f"✅ Model {ollama_model} already loaded")
+                return True
+            
+            # Unload current model if different
+            if self.current_loaded_model and self.current_loaded_model != ollama_model:
+                logger.info(f"🔄 Unloading {self.current_loaded_model} to save memory")
+                try:
+                    subprocess.run(['pkill', '-f', 'ollama'], capture_output=True)
+                    time.sleep(2)
+                except:
+                    pass
+            
+            logger.info(f"🚀 Loading model: {ollama_model}")
+            try:
+                # Start the model in background
+                subprocess.Popen(['ollama', 'run', ollama_model], 
+                               stdout=subprocess.DEVNULL, 
+                               stderr=subprocess.DEVNULL)
+                time.sleep(3)  # Wait for model to load
+                self.current_loaded_model = ollama_model
+                return True
+            except Exception as e:
+                logger.error(f"❌ Failed to load model {ollama_model}: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error in load_model: {e}")
+            return False
+    
+    def generate_response(self, prompt: str, model_id: str, device_context: List[Dict] = None) -> str:
+        """Generate response using the specified model with context"""
+        try:
+            # Load the model
+            if not self.load_model(model_id):
+                raise Exception(f"Failed to load model {model_id}")
+            
+            model_info = MODELS.get(model_id)
+            if not model_info:
+                raise Exception(f"Unknown model {model_id}")
+            
+            ollama_model = model_info["ollama_model"]
+            
+            # Build context-aware prompt
+            full_prompt = self._build_context_prompt(prompt, device_context)
+            
+            # Generate response
             result = subprocess.run(
-                ['ollama', 'run', ollama_model, user_message],
+                ['ollama', 'run', ollama_model, full_prompt],
                 capture_output=True,
                 text=True,
-                timeout=60  # 1 minute timeout for 1B models
+                timeout=60
             )
             
             if result.returncode == 0:
-                response_text = result.stdout.strip()
-                logger.info(f"✅ Got response from {ollama_model}")
-                return {
-                    "message": response_text,
-                    "model_used": model_override,
-                    "ollama_model": ollama_model,
-                    "confidence": 0.95,
-                    "source": "cloud_model",
-                    "cloud": True,
-                    "dynamic_loading": True
-                }
+                return result.stdout.strip()
             else:
-                logger.error(f"❌ Ollama error: {result.stderr}")
-                raise HTTPException(
-                    status_code=503,
-                    detail=f"Model error: {result.stderr}"
-                )
+                raise Exception(f"Model generation failed: {result.stderr}")
                 
-        except subprocess.TimeoutExpired:
-            logger.error("❌ Request timeout - Railway resource constraints")
-            raise HTTPException(
-                status_code=503,
-                detail="Request timeout - Railway Hobby Plan may not have sufficient resources"
-            )
         except Exception as e:
-            logger.error(f"❌ Cloud model error: {e}")
-            raise HTTPException(
-                status_code=503,
-                detail=f"Cloud model error: {str(e)}"
-            )
+            logger.error(f"❌ Error generating response: {e}")
+            raise e
+    
+    def _build_context_prompt(self, prompt: str, device_context: List[Dict] = None) -> str:
+        """Build a context-aware prompt"""
+        if not device_context:
+            return prompt
+        
+        # Build context from device memory
+        context_text = "\n\nPrevious conversation context:\n"
+        for item in device_context[-10:]:  # Last 10 context items
+            role = item.get("role", "user")
+            content = item.get("content", "")
+            if content:
+                context_text += f"{role.capitalize()}: {content}\n"
+        
+        context_text += f"\nCurrent message: {prompt}\n\nPlease respond to the current message, taking into account the conversation context above."
+        
+        return context_text
 
-# Initialize cloud AI system
-cloud_ai = CloudAISystem()
+# Initialize components
+smart_selector = SmartModelSelector()
+check_ollama_availability()
 
-# Install Ollama on startup
-install_ollama_on_railway()
+# API Models
+class ChatRequest(BaseModel):
+    message: str
+    device_id: str
+    model_override: Optional[str] = None
+    conversation_id: Optional[str] = None
 
-# Force download all 1B models on startup
-if OLLAMA_AVAILABLE:
-    logger.info("🚀 Starting automatic download of all 1B models...")
-    # Reset the flags to force download
-    global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
-    MODELS_DOWNLOADED = False
-    DOWNLOAD_IN_PROGRESS = False
-    success = download_models_to_railway()
-    if success:
-        logger.info("✅ All 1B models downloaded successfully!")
-    else:
-        logger.warning("⚠️ Some models failed to download")
+class ChatResponse(BaseModel):
+    response: str
+    model: str
+    device_id: str
+    conversation_id: str
+    deployment: str
+    context_used: bool
+
+class DeviceLinkRequest(BaseModel):
+    device_id: str
+    target_device_id: str
+
+class DeviceLinkResponse(BaseModel):
+    status: str
+    message: str
+    linked_devices: List[str]
 
 # API Endpoints
 @app.get("/")
 async def root():
     available_models = get_available_models() if OLLAMA_AVAILABLE else []
     return {
-        "message": "Ethos AI - Cloud Edition",
+        "message": "Ethos AI - Multi-Model System with Device Memory",
         "status": "healthy",
-        "version": "4.0.0-CLOUD-ONLY",
+        "version": "5.0.0-MULTI-MODEL-MEMORY",
         "ollama_available": OLLAMA_AVAILABLE,
-        "models_downloaded": MODELS_DOWNLOADED,
         "download_in_progress": DOWNLOAD_IN_PROGRESS,
         "available_models": available_models,
-        "deployment": "cloud-only",
-        "build": "CLOUD-MODELS-ACTIVE"
+        "deployment": "device-memory-system",
+        "build": "MULTI-MODEL-MEMORY",
+        "features": ["device_memory", "smart_model_selection", "device_linking", "multi_model"]
     }
 
 @app.get("/health")
@@ -394,410 +422,244 @@ async def health_check():
     return {
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
-        "version": "4.0.0-CLOUD-ONLY",
+        "version": "5.0.0-MULTI-MODEL-MEMORY",
         "ollama_available": OLLAMA_AVAILABLE,
-        "models_downloaded": MODELS_DOWNLOADED,
         "download_in_progress": DOWNLOAD_IN_PROGRESS,
         "available_models": available_models,
-        "deployment": "cloud-only",
-        "build": "CLOUD-MODELS-ACTIVE"
+        "deployment": "device-memory-system",
+        "active_devices": len(DEVICE_MEMORIES),
+        "device_links": len(DEVICE_LINKS)
     }
 
 @app.get("/api/models")
 async def get_models():
-    """Get available models"""
+    """Get available models with smart selection info"""
     try:
         if OLLAMA_AVAILABLE:
             available_models = get_available_models()
-            has_sailor = "sailor2:1b" in available_models
-            has_phi = "phi:1b" in available_models
-            has_llama2 = "llama2:1b" in available_models
             
-            # Create Ethos model mapping - dynamic 1B models
-            ethos_models = [
-                {
-                    "id": "ethos-light",
-                    "name": "Ethos Light (1B)",
+            # Create model list with availability status
+            ethos_models = []
+            for model_id, model_info in MODELS.items():
+                is_available = model_info["ollama_model"] in available_models
+                ethos_models.append({
+                    "id": model_id,
+                    "name": model_info["name"],
                     "type": "cloud",
                     "provider": "ollama",
-                    "enabled": has_sailor,
-                    "status": "available" if has_sailor else "downloading",
-                    "ollama_model": "sailor2:1b",
-                    "capabilities": ["general_knowledge", "multilingual", "conversation"],
+                    "enabled": True,
+                    "status": "available" if is_available else "downloadable",
+                    "ollama_model": model_info["ollama_model"],
+                    "capabilities": model_info["capabilities"],
+                    "best_for": model_info["best_for"],
+                    "size": model_info["size"],
+                    "priority": model_info["priority"],
                     "fusion_capable": False,
-                    "reason": "Dynamic 1B model - General purpose",
-                    "size": "1.1 GB"
-                },
-                {
-                    "id": "ethos-code",
-                    "name": "Ethos Code (1B)",
-                    "type": "cloud",
-                    "provider": "ollama",
-                    "enabled": has_phi,
-                    "status": "available" if has_phi else "downloading",
-                    "ollama_model": "phi:1b",
-                    "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
-                    "fusion_capable": False,
-                    "reason": "Dynamic 1B model - Coding focused",
-                    "size": "1.1 GB"
-                },
-                {
-                    "id": "ethos-fast",
-                    "name": "Ethos Fast (1B)",
-                    "type": "cloud",
-                    "provider": "ollama",
-                    "enabled": has_llama2,
-                    "status": "available" if has_llama2 else "downloading",
-                    "ollama_model": "llama2:1b",
-                    "capabilities": ["quick_responses", "basic_reasoning", "fast_inference"],
-                    "fusion_capable": False,
-                    "reason": "Dynamic 1B model - Fast responses",
-                    "size": "1.2 GB"
-                }
-            ]
+                    "reason": f"Smart selection model - {', '.join(model_info['best_for'])}"
+                })
             
-            response_data = {
+            return {
                 "models": ethos_models,
-                "total": len([m for m in ethos_models if m["enabled"]]),
-                "status": "available" if any(m["enabled"] for m in ethos_models) else "downloading",
-                "fusion_engine": False,
-                "ollama_available": True,
-                "available_models": [m["ollama_model"] for m in ethos_models if m["enabled"]],
-                "models_downloaded": MODELS_DOWNLOADED,
-                "download_in_progress": DOWNLOAD_IN_PROGRESS,
-                "message": "Cloud Ethos AI - Models running directly on Railway",
-                "deployment": "cloud-only"
+                "deployment": "device-memory-system",
+                "total": len(ethos_models),
+                "smart_selection": True,
+                "device_memory": True
             }
         else:
-            response_data = get_fallback_models()
+            return {
+                "models": [],
+                "error": "Ollama not available",
+                "deployment": "device-memory-system"
+            }
             
     except Exception as e:
-        logger.error(f"Error getting models: {e}")
-        response_data = get_fallback_models()
-    
-    response = JSONResponse(content=response_data)
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    return response
+        return {
+            "models": [],
+            "error": str(e),
+            "deployment": "device-memory-system"
+        }
 
-def get_fallback_models():
-    """Fallback models when Ollama not available"""
-    return {
-        "models": [
-            {
-                "id": "ethos-light",
-                "name": "Ethos Light (1B)",
-                "type": "cloud",
-                "provider": "ollama",
-                "enabled": False,
-                "status": "unavailable",
-                "ollama_model": "sailor2:1b",
-                "capabilities": ["general_knowledge", "multilingual", "conversation"],
-                "fusion_capable": False,
-                "reason": "Ollama not available",
-                "size": "1.1 GB"
-            },
-            {
-                "id": "ethos-code",
-                "name": "Ethos Code (1B)",
-                "type": "cloud",
-                "provider": "ollama",
-                "enabled": False,
-                "status": "unavailable",
-                "ollama_model": "phi:1b",
-                "capabilities": ["programming", "debugging", "code_generation", "technical_analysis"],
-                "fusion_capable": False,
-                "reason": "Ollama not available",
-                "size": "1.1 GB"
-            },
-            {
-                "id": "ethos-fast",
-                "name": "Ethos Fast (1B)",
-                "type": "cloud",
-                "provider": "ollama",
-                "enabled": False,
-                "status": "unavailable",
-                "ollama_model": "llama2:1b",
-                "capabilities": ["quick_responses", "basic_reasoning", "fast_inference"],
-                "fusion_capable": False,
-                "reason": "Ollama not available",
-                "size": "1.2 GB"
-            }
-        ],
-        "total": 0,
-        "status": "unavailable",
-        "fusion_engine": False,
-        "ollama_available": False,
-        "available_models": [],
-        "message": "Ollama not available",
-        "deployment": "cloud-only"
-    }
-
-@app.options("/api/chat")
-async def chat_options():
-    """Handle CORS preflight requests"""
-    response = JSONResponse(content={})
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    return response
-
-@app.post("/api/chat")
-async def chat_endpoint(request: Request):
-    """Chat endpoint"""
+@app.post("/api/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    """Chat endpoint with device memory and smart model selection"""
     try:
-        data = await request.json()
-        user_message = data.get("content", "")
-        model_override = data.get("model_override", "auto")
-        
-        if not user_message.strip():
-            raise HTTPException(status_code=400, detail="Message cannot be empty")
-        
-        # Check if models are available
-        available_models = get_available_models()
-        
-        # Try to use real models on Railway - no fallback responses
-        try:
-            # Generate response using cloud AI
-            response_data = await cloud_ai.generate_response(user_message, model_override)
-            response_data.update({
-                "conversation_id": data.get("conversation_id", f"conv_{int(time.time())}"),
-                "timestamp": datetime.now().isoformat(),
-                "processing_time": 0.0,
-                "capabilities_used": ["cloud_model"],
-                "synthesis_reasoning": f"Cloud AI model provided response based on {model_override}.",
-                "fusion_engine": False,
-                "deployment": "cloud-only",
-                "status": "success"
-            })
-        except Exception as e:
-            logger.error(f"Model {model_override} failed: {e}")
-            # No fallback - let the error propagate
+        if not OLLAMA_AVAILABLE:
             raise HTTPException(
                 status_code=503,
-                detail=f"Model {model_override} failed to respond: {str(e)}"
+                detail="Ollama not available"
             )
         
-        response = JSONResponse(content=response_data)
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
+        # Get or create device memory
+        device_memory = get_or_create_device_memory(request.device_id)
         
-    except HTTPException as e:
-        raise e
+        # Get device context (including linked devices)
+        linked_devices = DEVICE_LINKS.get(request.device_id, [])
+        device_context = device_memory.get_recent_context(10)
+        linked_context = device_memory.get_linked_device_context(linked_devices)
+        
+        # Combine contexts
+        full_context = device_context + linked_context
+        context_used = len(full_context) > 0
+        
+        # Smart model selection
+        available_models = get_available_models()
+        if request.model_override and request.model_override in MODELS:
+            selected_model = request.model_override
+        else:
+            selected_model = smart_selector.select_best_model(request.message, available_models)
+        
+        # Generate response
+        response = smart_selector.generate_response(
+            request.message, 
+            selected_model, 
+            full_context
+        )
+        
+        # Store in device memory
+        conversation_id = request.conversation_id or f"conv_{int(time.time())}"
+        device_memory.add_conversation(
+            conversation_id,
+            request.message,
+            response,
+            selected_model
+        )
+        
+        return ChatResponse(
+            response=response,
+            model=selected_model,
+            device_id=request.device_id,
+            conversation_id=conversation_id,
+            deployment="device-memory-system",
+            context_used=context_used
+        )
+        
     except Exception as e:
-        logger.error(f"Chat error: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={
-                "error": "Error generating response",
-                "message": f"Failed to generate response: {str(e)}",
-                "deployment": "cloud-only-error"
-            }
+        logger.error(f"❌ Chat error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"Chat error: {str(e)}"
         )
 
-@app.post("/api/download-models")
-async def download_models():
-    """Download models to Railway"""
-    global MODELS_DOWNLOADED, DOWNLOAD_IN_PROGRESS
-    
-    if DOWNLOAD_IN_PROGRESS:
-        return {
-            "status": "in_progress",
-            "message": "Models are currently being downloaded",
-            "deployment": "cloud-only"
-        }
-    
-    if MODELS_DOWNLOADED:
-        return {
-            "status": "already_downloaded",
-            "message": "Models are already downloaded",
-            "deployment": "cloud-only"
-        }
-    
-    # Start download in background
-    success = download_models_to_railway()
-    
-    return {
-        "status": "started" if success else "failed",
-        "message": "Model download started" if success else "Failed to start download",
-        "deployment": "cloud-only"
-    }
-
-@app.get("/api/models/status")
-async def get_models_status():
-    """Get models status"""
-    available_models = get_available_models() if OLLAMA_AVAILABLE else []
-    
-    return {
-        "available": OLLAMA_AVAILABLE,
-        "system_status": {
-            "total_models": 2,
-            "healthy_models": len(available_models),
-            "available_models": available_models,
-            "system_status": "cloud_ready" if OLLAMA_AVAILABLE else "not_ready",
-            "models": {
-                "llama3.2:3b": {
-                    "model_id": "llama3.2:3b",
-                    "model_name": "Llama 3.2 3B",
-                    "is_loaded": "llama3.2:3b" in available_models,
-                    "device": "cloud",
-                    "cuda_available": False,
-                    "load_time": 0,
-                    "last_used": 0,
-                    "error_count": 0,
-                    "avg_response_time": 0
-                },
-                "codellama:7b": {
-                    "model_id": "codellama:7b",
-                    "model_name": "Code Llama 7B",
-                    "is_loaded": "codellama:7b" in available_models,
-                    "device": "cloud",
-                    "cuda_available": False,
-                    "load_time": 0,
-                    "last_used": 0,
-                    "error_count": 0,
-                    "avg_response_time": 0
-                }
-            }
-        },
-        "models": {
-            "llama3.2:3b": {
-                "model_id": "llama3.2:3b",
-                "model_name": "Llama 3.2 3B",
-                "is_loaded": "llama3.2:3b" in available_models,
-                "device": "cloud",
-                "cuda_available": False,
-                "load_time": 0,
-                "last_used": 0,
-                "error_count": 0,
-                "avg_response_time": 0
-            },
-            "codellama:7b": {
-                "model_id": "codellama:7b",
-                "model_name": "Code Llama 7B",
-                "is_loaded": "codellama:7b" in available_models,
-                "device": "cloud",
-                "cuda_available": False,
-                "load_time": 0,
-                "last_used": 0,
-                "error_count": 0,
-                "avg_response_time": 0
-            }
-        }
-    }
-
-@app.post("/api/models/{model_id}/initialize")
-async def initialize_model(model_id: str):
-    """Initialize a specific model"""
+@app.get("/api/device/{device_id}/memory")
+async def get_device_memory(device_id: str, limit: int = 20):
+    """Get device memory/conversation history"""
     try:
-        # Check if models are downloaded
-        if not MODELS_DOWNLOADED:
+        device_memory = get_or_create_device_memory(device_id)
+        conversations = device_memory.get_conversation_history(limit)
+        
+        return {
+            "device_id": device_id,
+            "conversations": conversations,
+            "total_conversations": len(device_memory.conversations),
+            "deployment": "device-memory-system"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/device/link", response_model=DeviceLinkResponse)
+async def link_devices(request: DeviceLinkRequest):
+    """Link two devices for shared context"""
+    try:
+        # Create device memories if they don't exist
+        get_or_create_device_memory(request.device_id)
+        get_or_create_device_memory(request.target_device_id)
+        
+        # Link devices (bidirectional)
+        if request.device_id not in DEVICE_LINKS:
+            DEVICE_LINKS[request.device_id] = []
+        if request.target_device_id not in DEVICE_LINKS:
+            DEVICE_LINKS[request.target_device_id] = []
+        
+        if request.target_device_id not in DEVICE_LINKS[request.device_id]:
+            DEVICE_LINKS[request.device_id].append(request.target_device_id)
+        if request.device_id not in DEVICE_LINKS[request.target_device_id]:
+            DEVICE_LINKS[request.target_device_id].append(request.device_id)
+        
+        return DeviceLinkResponse(
+            status="success",
+            message=f"Devices {request.device_id} and {request.target_device_id} linked successfully",
+            linked_devices=DEVICE_LINKS[request.device_id]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/device/link")
+async def unlink_devices(request: DeviceLinkRequest):
+    """Unlink two devices"""
+    try:
+        if request.device_id in DEVICE_LINKS and request.target_device_id in DEVICE_LINKS[request.device_id]:
+            DEVICE_LINKS[request.device_id].remove(request.target_device_id)
+        if request.target_device_id in DEVICE_LINKS and request.device_id in DEVICE_LINKS[request.target_device_id]:
+            DEVICE_LINKS[request.target_device_id].remove(request.device_id)
+        
+        return {
+            "status": "success",
+            "message": f"Devices {request.device_id} and {request.target_device_id} unlinked"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/device/{device_id}/links")
+async def get_device_links(device_id: str):
+    """Get linked devices for a device"""
+    try:
+        linked_devices = DEVICE_LINKS.get(device_id, [])
+        return {
+            "device_id": device_id,
+            "linked_devices": linked_devices,
+            "total_linked": len(linked_devices)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/download-model")
+async def download_model_endpoint(model_name: str):
+    """Download a specific model on-demand"""
+    try:
+        if not OLLAMA_AVAILABLE:
+            raise HTTPException(status_code=503, detail="Ollama not available")
+        
+        if DOWNLOAD_IN_PROGRESS:
             return {
-                "status": "downloading",
-                "message": f"Models are being downloaded to Railway",
-                "model_id": model_id,
-                "available": False,
-                "deployment": "cloud-only"
+                "status": "in_progress",
+                "message": "Another download is already in progress",
+                "deployment": "device-memory-system"
             }
         
+        # Validate model name
+        valid_models = [model_info["ollama_model"] for model_info in MODELS.values()]
+        if model_name not in valid_models:
+            raise HTTPException(status_code=400, detail=f"Invalid model. Must be one of: {valid_models}")
+        
+        # Check if already downloaded
         available_models = get_available_models()
-        model_mapping = {
-            "ethos-light": "llama3.2:3b",
-            "ethos-code": "codellama:7b"
-        }
+        if model_name in available_models:
+            return {
+                "status": "already_downloaded",
+                "message": f"{model_name} is already available",
+                "deployment": "device-memory-system"
+            }
         
-        ollama_model = model_mapping.get(model_id, "llama3.2:3b")
+        # Start download
+        success = download_model_on_demand(model_name)
         
-        if ollama_model in available_models:
+        if success:
             return {
                 "status": "success",
-                "message": f"Model {model_id} ready on Railway",
-                "model_id": model_id,
-                "available": True,
-                "deployment": "cloud-only"
+                "message": f"{model_name} downloaded successfully",
+                "deployment": "device-memory-system"
             }
         else:
-            return {
-                "status": "error",
-                "message": f"Model {model_id} not available",
-                "model_id": model_id,
-                "available": False,
-                "deployment": "cloud-only"
-            }
+            raise HTTPException(status_code=500, detail=f"Failed to download {model_name}")
             
+    except HTTPException:
+        raise
     except Exception as e:
-        return {
-            "status": "error",
-            "message": f"Failed to initialize model {model_id}: {str(e)}",
-            "model_id": model_id,
-            "available": False,
-            "deployment": "cloud-only"
-        }
-
-@app.get("/api/models/{model_id}/status")
-async def get_model_status(model_id: str):
-    """Get status of a specific model"""
-    try:
-        available_models = get_available_models()
-        model_mapping = {
-            "ethos-light": "llama3.2:3b",
-            "ethos-code": "codellama:7b"
-        }
-        
-        ollama_model = model_mapping.get(model_id, "llama3.2:3b")
-        
-        return {
-            "model_id": model_id,
-            "status": "available" if ollama_model in available_models else "unavailable",
-            "available": ollama_model in available_models,
-            "deployment": "cloud-only"
-        }
-        
-    except Exception as e:
-        return {
-            "model_id": model_id,
-            "status": "error",
-            "available": False,
-            "error": str(e),
-            "deployment": "cloud-only"
-        }
-
-@app.post("/api/conversations")
-async def create_conversation():
-    """Create a new conversation"""
-    conversation_id = f"conv_{int(time.time())}"
-    return {
-        "conversation_id": conversation_id,
-        "status": "created",
-        "deployment": "cloud-only"
-    }
-
-@app.get("/api/conversations")
-async def get_conversations():
-    """Get all conversations"""
-    return {
-        "conversations": [],
-        "deployment": "cloud-only"
-    }
-
-@app.get("/api/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str):
-    """Get a specific conversation"""
-    return {
-        "id": conversation_id,
-        "title": "Conversation",
-        "messages": [],
-        "deployment": "cloud-only"
-    }
+        raise HTTPException(status_code=500, detail=f"Download error: {str(e)}")
 
 @app.get("/api/test-ollama")
 async def test_ollama_endpoint():
-    """Test Ollama and download models"""
+    """Test Ollama and show available models"""
     try:
         # Test Ollama
         result = subprocess.run(['ollama', '--version'], capture_output=True, text=True)
@@ -806,7 +668,7 @@ async def test_ollama_endpoint():
                 "status": "error",
                 "message": "Ollama not available",
                 "error": result.stderr,
-                "deployment": "cloud-only"
+                "deployment": "device-memory-system"
             }
         
         ollama_version = result.stdout.strip()
@@ -815,20 +677,28 @@ async def test_ollama_endpoint():
         list_result = subprocess.run(['ollama', 'list'], capture_output=True, text=True)
         current_models = list_result.stdout if list_result.returncode == 0 else "Error listing models"
         
+        # Check model availability
+        available_models = get_available_models()
+        model_status = {}
+        for model_id, model_info in MODELS.items():
+            model_status[model_id] = model_info["ollama_model"] in available_models
+        
         return {
             "status": "success",
             "ollama_version": ollama_version,
             "current_models": current_models,
-            "download_success": True,
-            "download_output": "No download attempted - models downloaded via startup",
-            "deployment": "cloud-only"
+            "model_status": model_status,
+            "download_in_progress": DOWNLOAD_IN_PROGRESS,
+            "deployment": "device-memory-system",
+            "active_devices": len(DEVICE_MEMORIES),
+            "device_links": len(DEVICE_LINKS)
         }
         
     except Exception as e:
         return {
             "status": "error",
             "message": f"Test failed: {str(e)}",
-            "deployment": "cloud-only"
+            "deployment": "device-memory-system"
         }
 
 if __name__ == "__main__":
