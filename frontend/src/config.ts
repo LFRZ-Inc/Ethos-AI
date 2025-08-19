@@ -4,10 +4,10 @@
 // Deployment timestamp: 2024-12-19 23:30:00 UTC
 // CACHE BUST: 2024-12-19 23:50:00 UTC - Force LocalTunnel for Vercel
 const getApiBaseUrl = () => {
-  // FORCE LocalTunnel for Vercel deployment (override any cached env vars)
+  // FORCE Railway proxy for Vercel deployment (Railway can reach LocalTunnel)
   if (window.location.hostname.includes('vercel.app')) {
-    console.log('Vercel detected - FORCING LocalTunnel directly');
-    return 'https://ethos-ai-test.loca.lt';
+    console.log('Vercel detected - using Railway proxy to LocalTunnel');
+    return 'https://cooking-ethos-ai-production-6bfd.up.railway.app';
   }
   
   // Check for Vite environment variable (but not for Vercel)
@@ -38,10 +38,10 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
-// Force LocalTunnel for Vercel deployment - override any cached values
+// Force Railway proxy for Vercel deployment - override any cached values
 if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
-  console.log('OVERRIDE: Forcing LocalTunnel URL for Vercel deployment');
-  // This will ensure we always use LocalTunnel for Vercel
+  console.log('OVERRIDE: Using Railway proxy to LocalTunnel for Vercel deployment');
+  // This will ensure we always use Railway proxy for Vercel
 }
 
 // API Endpoints
