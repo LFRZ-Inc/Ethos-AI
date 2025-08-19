@@ -2,19 +2,19 @@
 // Updated for Vercel deployment with TypeScript fixes
 // Force Vercel to use latest commit with TypeScript fixes
 // Deployment timestamp: 2024-12-19 23:30:00 UTC
-// CACHE BUST: 2024-12-19 23:45:00 UTC - Force LocalTunnel for Vercel
+// CACHE BUST: 2024-12-19 23:50:00 UTC - Force LocalTunnel for Vercel
 const getApiBaseUrl = () => {
-  // Check for Vite environment variable first
-  if (import.meta.env.VITE_API_BASE_URL) {
+  // FORCE LocalTunnel for Vercel deployment (override any cached env vars)
+  if (window.location.hostname.includes('vercel.app')) {
+    console.log('Vercel detected - FORCING LocalTunnel directly');
+    return 'https://ethos-ai-test.loca.lt';
+  }
+  
+  // Check for Vite environment variable (but not for Vercel)
+  if (import.meta.env.VITE_API_BASE_URL && !window.location.hostname.includes('vercel.app')) {
     console.log('Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
     return import.meta.env.VITE_API_BASE_URL;
   }
-  
-                // Force LocalTunnel for Vercel deployment (direct connection)
-              if (window.location.hostname.includes('vercel.app')) {
-                console.log('Vercel detected - using LocalTunnel directly');
-                return 'https://ethos-ai-test.loca.lt';
-              }
   
   // If we're on the same machine, use localhost
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
