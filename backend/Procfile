@@ -1,2 +1,2 @@
-# Run the hybrid proxy (Railway -> LocalTunnel)
-web: python railway_startup.py
+# Run the simple Railway proxy (Railway -> LocalTunnel)
+web: gunicorn simple_railway_proxy:app --bind 0.0.0.0:$PORT --workers 1 --timeout 600
