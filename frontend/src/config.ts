@@ -10,9 +10,9 @@ const getApiBaseUrl = () => {
     return import.meta.env.VITE_API_BASE_URL;
   }
   
-  // Force Railway for Vercel deployment (LocalTunnel not accessible from Vercel servers)
+  // Force Railway for Vercel deployment (Railway proxies to LocalTunnel)
   if (window.location.hostname.includes('vercel.app')) {
-    console.log('Vercel detected - using Railway backend');
+    console.log('Vercel detected - using Railway proxy to LocalTunnel');
     return 'https://cooking-ethos-ai-production-6bfd.up.railway.app';
   }
   
