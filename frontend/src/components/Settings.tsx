@@ -3,6 +3,7 @@ import { ArrowLeft, Save, Key, Globe, Database, Activity, HardDrive, Cpu, Monito
 import { useAppStore } from '../stores/appStore';
 import { API_ENDPOINTS } from '../config';
 import toast from 'react-hot-toast';
+import ConnectionTest from './ConnectionTest';
 
 const Settings: React.FC = () => {
   const { theme, setTheme } = useAppStore();
@@ -392,6 +393,17 @@ const Settings: React.FC = () => {
               </div>
             )}
           </div>
+        </div>
+
+        {/* Connection Test */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <Globe size={20} className="text-blue-500" />
+            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+              Connection Test
+            </h2>
+          </div>
+          <ConnectionTest />
         </div>
       </div>
     </div>
