@@ -5,26 +5,31 @@
 const getApiBaseUrl = () => {
   // Check for Vite environment variable first
   if (import.meta.env.VITE_API_BASE_URL) {
+    console.log('Using VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
     return import.meta.env.VITE_API_BASE_URL;
   }
   
   // If we're on the same machine, use localhost
   if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    console.log('Using localhost backend');
     return 'http://127.0.0.1:8000';
   }
   
   // For Vercel deployment, use LocalTunnel backend for full functionality
   if (window.location.hostname.includes('vercel.app')) {
+    console.log('Using LocalTunnel backend for Vercel deployment');
     return 'https://ethos-ai-test.loca.lt';
   }
   
   // For Railway deployment, use LocalTunnel backend for full functionality
   if (window.location.hostname.includes('railway.app') || 
       window.location.hostname.includes('ethos-ai-backend')) {
+    console.log('Using LocalTunnel backend for Railway deployment');
     return 'https://ethos-ai-test.loca.lt';
   }
   
   // Default fallback to LocalTunnel backend for full functionality
+  console.log('Using LocalTunnel backend as fallback');
   return 'https://ethos-ai-test.loca.lt';
 };
 
