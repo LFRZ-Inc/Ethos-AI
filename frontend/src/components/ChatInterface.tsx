@@ -13,6 +13,91 @@ import VoiceInput from './VoiceInput';
 import ThemeSwitcher from './ThemeSwitcher';
 import { API_ENDPOINTS, API_BASE_URL } from '../config';
 
+// Device memory management
+class DeviceMemory {
+  private static instance: DeviceMemory;
+  private deviceId: string;
+  private memoryKey = 'ethos_device_memory';
+
+  constructor() {
+    this.deviceId = this.generateDeviceId();
+  }
+
+  static getInstance(): DeviceMemory {
+    if (!DeviceMemory.instance) {
+      DeviceMemory.instance = new DeviceMemory();
+    }
+    return DeviceMemory.instance;
+  }
+
+  private generateDeviceId(): string {
+    let deviceId = localStorage.getItem('ethos_device_id');
+    if (!deviceId) {
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      localStorage.setItem('ethos_device_id', deviceId);
+    }
+    return deviceId;
+  }
+
+  getDeviceId(): string {
+    return this.deviceId;
+  }
+
+  loadMemory(): any[] {
+    try {
+      const memory = localStorage.getItem(this.memoryKey);
+      return memory ? JSON.parse(memory) : [];
+    } catch (error) {
+      console.error('Error loading device memory:', error);
+      return [];
+    }
+  }
+
+  saveMemory(memory: any[]): void {
+    try {
+      localStorage.setItem(this.memoryKey, JSON.stringify(memory));
+    } catch (error) {
+      console.error('Error saving device memory:', error);
+    }
+  }
+
+  getMemorySize(): number {
+    try {
+      const memory = localStorage.getItem(this.memoryKey);
+      return memory ? new Blob([memory]).size / 1024 : 0; // Size in KB
+    } catch (error) {
+      return 0;
+    }
+  }
+
+  clearMemory(): void {
+    localStorage.removeItem(this.memoryKey);
+  }
+
+  deleteConversation(conversationId: string): void {
+    try {
+      const memory = this.loadMemory();
+      const updatedMemory = memory.filter(item => item.id !== conversationId);
+      this.saveMemory(updatedMemory);
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+    }
+  }
+
+  deleteAllConversations(): void {
+    this.clearMemory();
+  }
+
+  getConversationCount(): number {
+    try {
+      const memory = this.loadMemory();
+      return memory.length;
+    } catch (error) {
+      return 0;
+    }
+  }
+}
+
 const ChatInterface: React.FC = () => {
   const { conversationId } = useParams();
   const [input, setInput] = useState('');
@@ -20,10 +105,13 @@ const ChatInterface: React.FC = () => {
   const [showVoiceInput, setShowVoiceInput] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const { messages, isLoading, addMessage, setLoading, setError } = useChatStore();
+  const { messages, isLoading, addMessage, setLoading, setError, setMessages } = useChatStore();
   const { currentConversationId, selectedModel, useTools, setCurrentConversation } = useAppStore();
   const { conversations, loadConversations, addConversation } = useConversationStore();
   const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  
+  // Device memory instance
+  const deviceMemory = DeviceMemory.getInstance();
 
   useEffect(() => {
     if (conversationId) {
@@ -31,6 +119,8 @@ const ChatInterface: React.FC = () => {
       loadConversation(conversationId);
     } else {
       setCurrentConversation(null);
+      // Load device memory for new conversations
+      loadDeviceMemory();
     }
     
     // Test network connectivity
@@ -65,6 +155,39 @@ const ChatInterface: React.FC = () => {
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const loadDeviceMemory = () => {
+    try {
+      const memory = deviceMemory.loadMemory();
+      if (memory.length > 0) {
+        // Convert device memory to chat messages
+        const chatMessages: Message[] = [];
+        for (const item of memory.slice(-20)) { // Load last 20 conversations
+          if (item.message) {
+            chatMessages.push({
+              id: `user-${item.id}`,
+              role: 'user',
+              content: item.message,
+              timestamp: item.timestamp,
+              modelUsed: item.model,
+            });
+          }
+          if (item.response) {
+            chatMessages.push({
+              id: `assistant-${item.id}`,
+              role: 'assistant',
+              content: item.response,
+              timestamp: item.timestamp,
+              modelUsed: item.model,
+            });
+          }
+        }
+        setMessages(chatMessages);
+      }
+    } catch (error) {
+      console.error('Error loading device memory:', error);
+    }
   };
 
   const loadConversation = async (id: string) => {
@@ -125,44 +248,22 @@ const ChatInterface: React.FC = () => {
     setIsTyping(true);
 
     try {
-      // Create conversation if needed
-      let convId = currentConversationId;
-      if (!convId) {
-        try {
-          const response = await fetch(API_ENDPOINTS.conversations, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: input.substring(0, 50) + '...' }),
-          });
-          if (response.ok) {
-            const result = await response.json();
-            convId = result.conversation_id;
-            setCurrentConversation(convId);
-          } else {
-            console.error('Failed to create conversation:', response.status);
-          }
-        } catch (error) {
-          console.error('Error creating conversation:', error);
-        }
-      }
-
-      // Send message to backend
-      console.log('Sending message to:', API_ENDPOINTS.chat);
-      console.log('Message payload:', {
-        content: input,
-        conversation_id: convId,
-        model_override: selectedModel || null,
-        use_tools: useTools,
-      });
+      // Get current device memory
+      const deviceMemoryData = deviceMemory.loadMemory();
       
-      const response = await fetch(API_ENDPOINTS.chat, {
+      // Send message using client-side storage API
+      console.log('Sending message to:', API_ENDPOINTS.clientChat);
+      console.log('Device ID:', deviceMemory.getDeviceId());
+      console.log('Device memory size:', deviceMemory.getMemorySize(), 'KB');
+      
+      const response = await fetch(API_ENDPOINTS.clientChat, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: input,
-          conversation_id: convId,
+          message: input,
+          device_id: deviceMemory.getDeviceId(),
+          device_memory: deviceMemoryData,
           model_override: selectedModel || null,
-          use_tools: useTools,
         }),
       });
 
@@ -176,20 +277,28 @@ const ChatInterface: React.FC = () => {
       }
 
       const result = await response.json();
+      console.log('AI Response:', result);
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: result.message || result.content, // Handle both message and content fields
-        timestamp: result.timestamp,
-        modelUsed: result.model_used,
-        toolsCalled: result.tools_called,
+        content: result.response,
+        timestamp: new Date().toISOString(),
+        modelUsed: result.model,
       };
 
       addMessage(assistantMessage);
 
-      // Reload conversations to update the list
-      await loadConversations();
+      // Save updated memory to device
+      if (result.updated_memory) {
+        deviceMemory.saveMemory(result.updated_memory);
+        console.log('Updated device memory, new size:', result.storage_size_kb, 'KB');
+      }
+
+      // Show context usage info
+      if (result.context_used) {
+        toast.success(`Used conversation context (${deviceMemoryData.length} previous messages)`);
+      }
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -246,6 +355,28 @@ const ChatInterface: React.FC = () => {
     }
   };
 
+  const handleDeleteCurrentConversation = () => {
+    if (messages.length > 0) {
+      const confirmed = window.confirm('Are you sure you want to delete this conversation? This action cannot be undone.');
+      if (confirmed) {
+        // Clear current messages
+        setMessages([]);
+        // Clear device memory for this session
+        deviceMemory.clearMemory();
+        toast.success('Conversation deleted successfully');
+      }
+    }
+  };
+
+  const handleDeleteAllConversations = () => {
+    const confirmed = window.confirm('Are you sure you want to delete ALL conversations? This action cannot be undone.');
+    if (confirmed) {
+      deviceMemory.deleteAllConversations();
+      setMessages([]);
+      toast.success('All conversations deleted successfully');
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -277,33 +408,53 @@ const ChatInterface: React.FC = () => {
             />
           </div>
         </div>
-                  <div className="flex items-center space-x-2">
-            {/* Network Status Indicator */}
-            <div className={`px-2 py-1 rounded text-xs ${
-              networkStatus === 'connected' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-              networkStatus === 'disconnected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-            }`}>
-              {networkStatus === 'connected' ? '🟢 Connected' :
-               networkStatus === 'disconnected' ? '🔴 Disconnected' :
-               '🟡 Checking...'}
-            </div>
-            
-            <ToolPanel />
-            <ThemeSwitcher size="sm" />
-            <button
-              onClick={() => setShowVoiceInput(!showVoiceInput)}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <Mic size={20} />
-            </button>
-            <button
-              onClick={() => window.location.href = '/settings'}
-              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-            >
-              <Settings size={20} />
-            </button>
+        <div className="flex items-center space-x-2">
+          {/* Network Status Indicator */}
+          <div className={`px-2 py-1 rounded text-xs ${
+            networkStatus === 'connected' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+            networkStatus === 'disconnected' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+          }`}>
+            {networkStatus === 'connected' ? '🟢 Connected' :
+             networkStatus === 'disconnected' ? '🔴 Disconnected' :
+             '🟡 Checking...'}
           </div>
+          
+          {/* Delete Buttons */}
+          {messages.length > 0 && (
+            <>
+              <button
+                onClick={handleDeleteCurrentConversation}
+                className="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                title="Delete current conversation"
+              >
+                🗑️ Clear
+              </button>
+              <button
+                onClick={handleDeleteAllConversations}
+                className="px-2 py-1 text-xs bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 rounded hover:bg-red-200 dark:hover:bg-red-800 transition-colors"
+                title="Delete all conversations"
+              >
+                🗑️ All
+              </button>
+            </>
+          )}
+          
+          <ToolPanel />
+          <ThemeSwitcher size="sm" />
+          <button
+            onClick={() => setShowVoiceInput(!showVoiceInput)}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <Mic size={20} />
+          </button>
+          <button
+            onClick={() => window.location.href = '/settings'}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Messages */}
@@ -313,7 +464,7 @@ const ChatInterface: React.FC = () => {
             <div className="text-center">
               <Bot size={48} className="mx-auto mb-4" />
               <p className="text-lg font-medium">Welcome to Ethos AI</p>
-              <p className="text-sm mb-4">I'm Ethos, your personal AI assistant. I remember our conversations and I'm here to help with anything you need!</p>
+              <p className="text-sm mb-4">I'm Ethos, your personal AI assistant with real AI models! I remember our conversations and I'm here to help with anything you need!</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
                 <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
                   <h3 className="font-medium text-blue-800 dark:text-blue-200 mb-2">💻 Coding & Development</h3>
@@ -333,6 +484,7 @@ const ChatInterface: React.FC = () => {
                 </div>
               </div>
               <p className="text-sm mt-4">Start a conversation by typing a message below</p>
+              <p className="text-xs mt-2 text-gray-400">Your conversations are stored locally on this device for privacy</p>
             </div>
           </div>
         )}
