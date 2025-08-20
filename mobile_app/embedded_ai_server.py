@@ -66,10 +66,11 @@ class EmbeddedAIServer:
     def get_available_port(self) -> int:
         """Find an available port for the server"""
         import socket
-        for port in range(8000, 8010):
+        for port in range(8000, 8020):  # Check more ports
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                     s.bind(('localhost', port))
+                    s.close()  # Close the test socket
                     return port
             except OSError:
                 continue
