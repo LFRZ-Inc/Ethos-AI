@@ -104,22 +104,22 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
 
   return (
     <div className="flex items-center gap-2">
-      {/* Web Search Button */}
-      <button
-        onClick={handleWebSearch}
-        disabled={isSearching}
-        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-          isSearching
-            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-            : buttonClicked
-            ? 'bg-green-100 text-green-700 border-2 border-green-300 shadow-md'
-            : 'bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200'
-        }`}
-        title={buttonClicked ? "Web search activated! Click send to use it." : "Search the web for current information"}
-      >
-        <Search size={16} className={buttonClicked ? 'animate-pulse' : ''} />
-        {isSearching ? 'Searching...' : buttonClicked ? 'Web Search ✓' : 'Web Search'}
-      </button>
+             {/* Web Search Button */}
+       <button
+         onClick={handleWebSearch}
+         disabled={isSearching}
+         className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
+           isSearching
+             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+             : buttonClicked
+             ? 'bg-blue-800 text-white border-2 border-blue-600 shadow-md'
+             : 'bg-white text-blue-600 hover:bg-gray-50 border border-gray-300'
+         }`}
+         title={buttonClicked ? "Web search activated! Click send to use it." : "Search the web for current information"}
+       >
+         <Search size={16} className={buttonClicked ? 'animate-pulse' : ''} />
+         {isSearching ? 'Searching...' : buttonClicked ? 'Web Search ✓' : 'Web Search'}
+       </button>
 
       {/* Settings Button */}
       <button
@@ -133,13 +133,13 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
       {/* Search Indicator */}
       {getSearchIndicator()}
       
-      {/* Active Web Search Indicator */}
-      {buttonClicked && (
-        <div className="flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-1 rounded-md border border-green-200 animate-pulse">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
-          <span>Web search active</span>
-        </div>
-      )}
+             {/* Active Web Search Indicator */}
+       {buttonClicked && (
+         <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200 animate-pulse">
+           <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+           <span>Web search active</span>
+         </div>
+       )}
 
       {/* Settings Panel */}
       {showSettings && (
