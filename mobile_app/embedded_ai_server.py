@@ -83,43 +83,67 @@ class EmbeddedAIServer:
         
         models = []
         
-        # Lightweight models for mobile devices
-        if memory_gb >= 2 and storage_gb >= 2:
-            models.append({
-                "name": "phi:1b",
-                "size_gb": 1.6,
-                "type": "text_generation",
-                "priority": 1
-            })
+        # Check available models from Ollama
+        available_models = self.get_available_ollama_models()
         
-        if memory_gb >= 4 and storage_gb >= 4:
-            models.append({
-                "name": "llama2:1b", 
-                "size_gb": 1.1,
-                "type": "text_generation",
-                "priority": 2
-            })
+        # Define model configurations (excluding 20B and 70B models)
+        model_configs = {
+            "phi:latest": {"size_gb": 1.6, "type": "text_generation", "priority": 1, "min_ram": 2},
+            "sailor2:1b": {"size_gb": 1.1, "type": "text_generation", "priority": 2, "min_ram": 2},
+            "llama2:latest": {"size_gb": 3.8, "type": "text_generation", "priority": 3, "min_ram": 6},
+            "llama3.2:3b": {"size_gb": 2.0, "type": "text_generation", "priority": 4, "min_ram": 4},
+            "codellama:7b": {"size_gb": 3.8, "type": "code_generation", "priority": 5, "min_ram": 8},
+            "llava:7b": {"size_gb": 4.7, "type": "multimodal", "priority": 6, "min_ram": 10}
+        }
         
-        if memory_gb >= 6 and storage_gb >= 6:
-            models.append({
-                "name": "llama3.2:3b",
-                "size_gb": 3.4,
-                "type": "text_generation", 
-                "priority": 3
-            })
+        # Select models based on device capabilities and availability
+        for model_name, config in model_configs.items():
+            if (model_name in available_models and 
+                memory_gb >= config["min_ram"] and 
+                storage_gb >= config["size_gb"]):
+                
+                models.append({
+                    "name": model_name,
+                    "size_gb": config["size_gb"],
+                    "type": config["type"],
+                    "priority": config["priority"]
+                })
         
-        if memory_gb >= 10 and storage_gb >= 10:
-            models.append({
-                "name": "codellama:7b",
-                "size_gb": 7.2,
-                "type": "code_generation",
-                "priority": 4
-            })
+        # Sort by priority
+        models.sort(key=lambda x: x["priority"])
         
         return models
     
+    def get_available_ollama_models(self) -> List[str]:
+        """Get list of available models from Ollama"""
+        try:
+            result = subprocess.run(
+                ['ollama', 'list'], 
+                capture_output=True, 
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
+            
+            if result.returncode == 0:
+                models = []
+                lines = result.stdout.strip().split('\n')
+                for line in lines[1:]:  # Skip header
+                    if line.strip():
+                        parts = line.split()
+                        if parts:
+                            model_name = parts[0]
+                            # Exclude 20B and 70B models
+                            if not any(size in model_name for size in ['20b', '70b']):
+                                models.append(model_name)
+                return models
+            else:
+                return []
+        except:
+            return []
+    
     def download_models(self) -> bool:
-        """Download AI models based on device capabilities"""
+        """Use available models (no downloading needed)"""
         models = self.select_models_for_device()
         
         if not models:
@@ -127,19 +151,16 @@ class EmbeddedAIServer:
             return False
         
         print(f"📱 Device specs: {self.device_specs['memory']['available_gb']}GB RAM, {self.device_specs['storage']['free_gb']}GB storage")
-        print(f"🤖 Selected models: {[m['name'] for m in models]}")
+        print(f"🤖 Available models: {[m['name'] for m in models]}")
         
         # Check if Ollama is available
         if not self.check_ollama():
-            print("❌ Ollama not available - installing...")
-            if not self.install_ollama():
-                return False
+            print("❌ Ollama not available")
+            return False
         
-        # Download models
+        # Use existing models (no downloading needed)
         for model in models:
-            if not self.download_model(model["name"]):
-                print(f"⚠️ Failed to download {model['name']}, skipping...")
-                continue
+            print(f"✅ Using existing model: {model['name']} ({model['size_gb']}GB)")
             self.models_available.append(model)
         
         return len(self.models_available) > 0
