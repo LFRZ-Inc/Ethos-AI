@@ -146,8 +146,13 @@ class EmbeddedAIServer:
     def check_ollama(self) -> bool:
         """Check if Ollama is installed and available"""
         try:
-            result = subprocess.run(['ollama', '--version'], 
-                                  capture_output=True, text=True)
+            result = subprocess.run(
+                ['ollama', '--version'], 
+                capture_output=True, 
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
             return result.returncode == 0
         except:
             return False
@@ -175,8 +180,14 @@ class EmbeddedAIServer:
         """Download a specific AI model"""
         try:
             print(f"📥 Downloading {model_name}...")
-            result = subprocess.run(['ollama', 'pull', model_name], 
-                                  capture_output=True, text=True)
+            # Fix Windows encoding issue
+            result = subprocess.run(
+                ['ollama', 'pull', model_name], 
+                capture_output=True, 
+                text=True,
+                encoding='utf-8',
+                errors='ignore'
+            )
             return result.returncode == 0
         except Exception as e:
             print(f"❌ Error downloading {model_name}: {e}")
@@ -203,6 +214,13 @@ class EmbeddedAIServer:
     def _run_server(self):
         """Run the FastAPI server"""
         try:
+            # Add parent directory to path to find the module
+            import sys
+            import os
+            parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            backend_dir = os.path.join(parent_dir, 'backend')
+            sys.path.insert(0, backend_dir)
+            
             # Import and run the server
             from client_storage_version import app
             import uvicorn
@@ -216,6 +234,8 @@ class EmbeddedAIServer:
             )
         except Exception as e:
             print(f"❌ Server error: {e}")
+            print(f"📁 Current directory: {os.getcwd()}")
+            print(f"📁 Backend directory: {backend_dir}")
             self.server_running = False
     
     def get_server_info(self) -> Dict:
