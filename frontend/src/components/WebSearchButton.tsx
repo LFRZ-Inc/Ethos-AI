@@ -34,6 +34,7 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
   const [showSettings, setShowSettings] = useState(false);
   const [autoSearchEnabled, setAutoSearchEnabled] = useState(true);
   const [buttonClicked, setButtonClicked] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
     loadWebSearchConfig();
@@ -42,11 +43,28 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
   const loadWebSearchConfig = async () => {
     try {
       const response = await fetch('/api/web-search/config');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       const data = await response.json();
       setConfig(data);
       setAutoSearchEnabled(data.auto_search_enabled);
+      setIsConnected(true);
+      console.log('✅ Web search config loaded successfully');
     } catch (error) {
-      console.error('Failed to load web search config:', error);
+      console.error('❌ Failed to load web search config:', error);
+      setIsConnected(false);
+      // Set default config if backend is not available
+      setConfig({
+        auto_search_enabled: true,
+        show_search_indicator: true,
+        manual_search_available: true,
+        sources_available: {
+          duckduckgo: true,
+          wikipedia: true,
+          news: false
+        }
+      });
     }
   };
 
@@ -70,14 +88,23 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
   };
 
   const handleWebSearch = () => {
+    if (!isConnected) {
+      toast.error('❌ Web search not connected to backend');
+      return;
+    }
+    
     setButtonClicked(true);
     onWebSearch(true);
     toast.success('🌐 Web search activated! Click send to use it.');
     
-    // Reset button state after a short delay
-    setTimeout(() => {
-      setButtonClicked(false);
-    }, 3000);
+    // Keep button active if connected, reset if not
+    if (isConnected) {
+      // Don't reset - keep it active
+    } else {
+      setTimeout(() => {
+        setButtonClicked(false);
+      }, 3000);
+    }
   };
 
   const toggleAutoSearch = () => {
@@ -85,6 +112,16 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
     setAutoSearchEnabled(newValue);
     updateConfig({ auto_search_enabled: newValue });
   };
+
+  // Function to reset button state (can be called from parent)
+  const resetButtonState = () => {
+    setButtonClicked(false);
+  };
+
+  // Expose reset function to parent component
+  React.useImperativeHandle(React.useRef(), () => ({
+    resetButtonState
+  }));
 
   const getSearchIndicator = () => {
     if (!searchPerformed || !config?.show_search_indicator) return null;
@@ -107,18 +144,26 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
              {/* Web Search Button */}
        <button
          onClick={handleWebSearch}
-         disabled={isSearching}
+         disabled={isSearching || !isConnected}
          className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
            isSearching
+             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+             : !isConnected
              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
              : buttonClicked
              ? 'bg-blue-800 text-white border-2 border-blue-600 shadow-md'
              : 'bg-white text-blue-600 hover:bg-gray-50 border border-gray-300'
          }`}
-         title={buttonClicked ? "Web search activated! Click send to use it." : "Search the web for current information"}
+         title={
+           !isConnected 
+             ? "Web search not connected to backend" 
+             : buttonClicked 
+             ? "Web search activated! Click send to use it." 
+             : "Search the web for current information"
+         }
        >
          <Search size={16} className={buttonClicked ? 'animate-pulse' : ''} />
-         {isSearching ? 'Searching...' : buttonClicked ? 'Web Search ✓' : 'Web Search'}
+         {isSearching ? 'Searching...' : !isConnected ? 'Web Search ❌' : buttonClicked ? 'Web Search ✓' : 'Web Search'}
        </button>
 
       {/* Settings Button */}
@@ -133,13 +178,21 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
       {/* Search Indicator */}
       {getSearchIndicator()}
       
-             {/* Active Web Search Indicator */}
-       {buttonClicked && (
-         <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200 animate-pulse">
-           <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
-           <span>Web search active</span>
-         </div>
-       )}
+             {/* Connection Status Indicator */}
+      {!isConnected && (
+        <div className="flex items-center gap-1 text-xs text-red-600 bg-red-50 px-2 py-1 rounded-md border border-red-200">
+          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+          <span>Not connected</span>
+        </div>
+      )}
+      
+      {/* Active Web Search Indicator */}
+      {buttonClicked && isConnected && (
+        <div className="flex items-center gap-1 text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-200 animate-pulse">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+          <span>Web search active</span>
+        </div>
+      )}
 
       {/* Settings Panel */}
       {showSettings && (
