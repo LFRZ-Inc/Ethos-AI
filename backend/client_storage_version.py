@@ -20,6 +20,9 @@ from pydantic import BaseModel
 from typing import Optional, Dict, List
 import logging
 
+# Import RAG system
+from web_search_apis import rag_system, web_apis
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -258,9 +261,12 @@ def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] 
         raise e
 
 def build_context_prompt(prompt: str, device_context: List[Dict] = None) -> str:
-    """Build a context-aware prompt"""
+    """Build a context-aware prompt with RAG enhancement"""
+    # First, enhance prompt with web search if needed
+    enhanced_prompt = rag_system.enhance_prompt(prompt)
+    
     if not device_context:
-        return prompt
+        return enhanced_prompt
     
     # Build context from device memory
     context_text = "\n\nPrevious conversation context:\n"
@@ -270,7 +276,7 @@ def build_context_prompt(prompt: str, device_context: List[Dict] = None) -> str:
         if content:
             context_text += f"{role.capitalize()}: {content}\n"
     
-    context_text += f"\nCurrent message: {prompt}\n\nPlease respond to the current message, taking into account the conversation context above."
+    context_text += f"\nCurrent message: {enhanced_prompt}\n\nPlease respond to the current message, taking into account the conversation context above."
     
     return context_text
 
@@ -667,6 +673,56 @@ async def get_knowledge():
 async def get_citations():
     """Citations endpoint for compatibility with frontend"""
     return []
+
+# Web Search and RAG API Endpoints
+@app.post("/api/web-search")
+async def web_search(query: str):
+    """Perform web search using all available sources"""
+    try:
+        results = web_apis.search_all_sources(query)
+        return {
+            "success": True,
+            "query": query,
+            "results": results,
+            "sources_used": {
+                "duckduckgo": len(results['web_search']) > 0,
+                "news": len(results['news']) > 0,
+                "wikipedia": len(results['wikipedia']) > 0
+            }
+        }
+    except Exception as e:
+        logger.error(f"Web search error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "query": query
+        }
+
+@app.get("/api/search-status")
+async def get_search_status():
+    """Get status of search APIs"""
+    return {
+        "duckduckgo": True,  # Always available
+        "news_api": web_apis.news_api_key is not None,
+        "wikipedia": True,  # Always available
+        "rag_enabled": True
+    }
+
+@app.post("/api/set-news-api-key")
+async def set_news_api_key(api_key: str):
+    """Set News API key"""
+    try:
+        rag_system.set_news_api_key(api_key)
+        web_apis.set_news_api_key(api_key)
+        return {
+            "success": True,
+            "message": "News API key set successfully"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 @app.get("/")
 async def root():
