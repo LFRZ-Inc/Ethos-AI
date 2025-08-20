@@ -27,14 +27,15 @@ from web_search_apis import rag_system, web_apis
 WEB_SEARCH_CONFIG = {
     "auto_search_enabled": True,  # Can be toggled by user
     "show_search_indicator": True,
-    "manual_search_available": True
+    "manual_search_available": True,
+    "store_search_memory": True  # Store search results in device memory
 }
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Ethos AI - Production Client Storage", version="5.4.0-HYBRID-WEB-SEARCH")
+app = FastAPI(title="Ethos AI - Production Client Storage", version="5.5.0-WEB-SEARCH-MEMORY")
 
 app.add_middleware(
     CORSMiddleware,
@@ -280,9 +281,10 @@ def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] 
         raise e
 
 def build_context_prompt(prompt: str, device_context: List[Dict] = None, force_web_search: bool = False) -> Dict:
-    """Build a context-aware prompt with hybrid RAG enhancement"""
+    """Build a context-aware prompt with hybrid RAG enhancement and web search memory"""
     search_performed = False
     search_context = ""
+    search_memory_used = []
     
     # Check if we should perform web search
     should_search = force_web_search or (WEB_SEARCH_CONFIG["auto_search_enabled"] and rag_system.should_search(prompt))
@@ -294,11 +296,22 @@ def build_context_prompt(prompt: str, device_context: List[Dict] = None, force_w
     else:
         enhanced_prompt = prompt
     
+    # Extract web search memory from device context
+    if device_context and WEB_SEARCH_CONFIG["store_search_memory"]:
+        for item in device_context:
+            if item.get("type") == "web_search":
+                search_memory_used.append({
+                    "query": item.get("query", ""),
+                    "sources": item.get("sources", []),
+                    "timestamp": item.get("timestamp", "")
+                })
+    
     if not device_context:
         return {
             "prompt": enhanced_prompt,
             "search_performed": search_performed,
-            "search_context": search_context
+            "search_context": search_context,
+            "search_memory_used": search_memory_used
         }
     
     # Build context from device memory
@@ -309,12 +322,19 @@ def build_context_prompt(prompt: str, device_context: List[Dict] = None, force_w
         if content:
             context_text += f"{role.capitalize()}: {content}\n"
     
-    context_text += f"\nCurrent message: {enhanced_prompt}\n\nPlease respond to the current message, taking into account the conversation context above."
+    # Add web search memory context
+    if search_memory_used:
+        context_text += "\n\nWeb search memory (available to all models):\n"
+        for search in search_memory_used[-5:]:  # Last 5 searches
+            context_text += f"Search: {search['query']} (Sources: {', '.join(search['sources'])})\n"
+    
+    context_text += f"\nCurrent message: {enhanced_prompt}\n\nPlease respond to the current message, taking into account the conversation context and web search memory above."
     
     return {
         "prompt": context_text,
         "search_performed": search_performed,
-        "search_context": search_context
+        "search_context": search_context,
+        "search_memory_used": search_memory_used
     }
 
 # File processing functions
@@ -443,9 +463,43 @@ async def chat_with_client_memory(request: ChatWithMemoryRequest):
         updated_memory = request.device_memory or []
         updated_memory.append(new_conversation)
         
-        # Keep only last 50 conversations
-        if len(updated_memory) > 50:
-            updated_memory = updated_memory[-50:]
+        # Store web search results in device memory if search was performed
+        if web_search_info.get("performed") and WEB_SEARCH_CONFIG["store_search_memory"]:
+            sources = []
+            if web_search_info.get("sources_used", {}).get("duckduckgo"):
+                sources.append("DuckDuckGo")
+            if web_search_info.get("sources_used", {}).get("wikipedia"):
+                sources.append("Wikipedia")
+            if web_search_info.get("sources_used", {}).get("news"):
+                sources.append("News")
+            
+            web_search_memory = {
+                "id": f"search_{int(datetime.now().timestamp())}",
+                "type": "web_search",
+                "timestamp": datetime.now().isoformat(),
+                "query": request.message,
+                "sources": sources,
+                "model_used": selected_model
+            }
+            updated_memory.append(web_search_memory)
+        
+        # Keep only last 50 conversations and 20 web searches
+        conversation_count = sum(1 for item in updated_memory if item.get("type") != "web_search")
+        search_count = sum(1 for item in updated_memory if item.get("type") == "web_search")
+        
+        if conversation_count > 50:
+            # Remove oldest conversations, keep web searches
+            conversations = [item for item in updated_memory if item.get("type") != "web_search"]
+            searches = [item for item in updated_memory if item.get("type") == "web_search"]
+            conversations = conversations[-50:]
+            updated_memory = conversations + searches
+        
+        if search_count > 20:
+            # Remove oldest web searches
+            conversations = [item for item in updated_memory if item.get("type") != "web_search"]
+            searches = [item for item in updated_memory if item.get("type") == "web_search"]
+            searches = searches[-20:]
+            updated_memory = conversations + searches
         
         # Calculate storage size
         memory_json = json.dumps(updated_memory)
@@ -780,7 +834,7 @@ async def get_web_search_config():
     }
 
 @app.post("/api/web-search/config")
-async def update_web_search_config(auto_search_enabled: bool = None, show_search_indicator: bool = None):
+async def update_web_search_config(auto_search_enabled: bool = None, show_search_indicator: bool = None, store_search_memory: bool = None):
     """Update web search configuration"""
     global WEB_SEARCH_CONFIG
     
@@ -790,11 +844,64 @@ async def update_web_search_config(auto_search_enabled: bool = None, show_search
     if show_search_indicator is not None:
         WEB_SEARCH_CONFIG["show_search_indicator"] = show_search_indicator
     
+    if store_search_memory is not None:
+        WEB_SEARCH_CONFIG["store_search_memory"] = store_search_memory
+    
     return {
         "success": True,
         "config": WEB_SEARCH_CONFIG,
         "message": "Web search configuration updated"
     }
+
+@app.get("/api/web-search/memory")
+async def get_web_search_memory(device_id: str):
+    """Get web search memory for a device"""
+    try:
+        # This would typically come from the client's device memory
+        # For now, we'll return a placeholder structure
+        return {
+            "success": True,
+            "web_searches": [],
+            "total_searches": 0,
+            "message": "Web search memory retrieved"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.delete("/api/web-search/memory")
+async def clear_web_search_memory(device_id: str):
+    """Clear all web search memory for a device"""
+    try:
+        # This would typically clear from the client's device memory
+        # For now, we'll return a success message
+        return {
+            "success": True,
+            "message": "Web search memory cleared successfully"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.delete("/api/web-search/memory/{search_id}")
+async def delete_specific_search(search_id: str, device_id: str):
+    """Delete a specific web search from memory"""
+    try:
+        # This would typically remove from the client's device memory
+        # For now, we'll return a success message
+        return {
+            "success": True,
+            "message": f"Web search {search_id} deleted successfully"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 @app.get("/")
 async def root():

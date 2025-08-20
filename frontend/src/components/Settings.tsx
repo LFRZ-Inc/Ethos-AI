@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, Key, Globe, Database, Activity, HardDrive, Cpu, Monitor } from 'lucide-react';
+import { ArrowLeft, Save, Key, Globe, Database, Activity, HardDrive, Cpu, Monitor, Search, Trash2 } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
 import { API_ENDPOINTS } from '../config';
 import toast from 'react-hot-toast';
@@ -15,10 +15,18 @@ const Settings: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [ramData, setRamData] = useState<any>(null);
   const [ramLoading, setRamLoading] = useState(false);
+  const [webSearchMemory, setWebSearchMemory] = useState<any[]>([]);
+  const [webSearchConfig, setWebSearchConfig] = useState({
+    auto_search_enabled: true,
+    show_search_indicator: true,
+    store_search_memory: true
+  });
 
   useEffect(() => {
     loadSettings();
     fetchRAMData();
+    loadWebSearchConfig();
+    loadWebSearchMemory();
   }, []);
 
   const loadSettings = async () => {
@@ -79,6 +87,91 @@ const Settings: React.FC = () => {
       console.error('Failed to fetch RAM data:', error);
     } finally {
       setRamLoading(false);
+    }
+  };
+
+  const loadWebSearchConfig = async () => {
+    try {
+      const response = await fetch('/api/web-search/config');
+      if (response.ok) {
+        const config = await response.json();
+        setWebSearchConfig(config);
+      }
+    } catch (error) {
+      console.error('Failed to load web search config:', error);
+    }
+  };
+
+  const loadWebSearchMemory = async () => {
+    try {
+      const deviceId = localStorage.getItem('ethos_device_id') || 'default';
+      const response = await fetch(`/api/web-search/memory?device_id=${deviceId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setWebSearchMemory(data.web_searches || []);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load web search memory:', error);
+    }
+  };
+
+  const updateWebSearchConfig = async (updates: any) => {
+    try {
+      const response = await fetch('/api/web-search/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setWebSearchConfig(data.config);
+          toast.success('Web search settings updated');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to update web search config:', error);
+      toast.error('Failed to update web search settings');
+    }
+  };
+
+  const clearWebSearchMemory = async () => {
+    try {
+      const deviceId = localStorage.getItem('ethos_device_id') || 'default';
+      const response = await fetch(`/api/web-search/memory?device_id=${deviceId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setWebSearchMemory([]);
+          toast.success('Web search memory cleared');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to clear web search memory:', error);
+      toast.error('Failed to clear web search memory');
+    }
+  };
+
+  const deleteSpecificSearch = async (searchId: string) => {
+    try {
+      const deviceId = localStorage.getItem('ethos_device_id') || 'default';
+      const response = await fetch(`/api/web-search/memory/${searchId}?device_id=${deviceId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setWebSearchMemory(prev => prev.filter(search => search.id !== searchId));
+          toast.success('Search deleted');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete search:', error);
+      toast.error('Failed to delete search');
     }
   };
 
@@ -390,6 +483,108 @@ const Settings: React.FC = () => {
                 >
                   Retry
                 </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Web Search Memory */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <Search size={20} className="text-blue-500" />
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
+                Web Search Memory
+              </h2>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={loadWebSearchMemory}
+                className="px-3 py-1 text-sm bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                Refresh
+              </button>
+              <button
+                onClick={clearWebSearchMemory}
+                className="px-3 py-1 text-sm bg-red-500 text-white rounded hover:bg-red-600"
+                title="Clear all web search memory"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </div>
+          
+          {/* Web Search Configuration */}
+          <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Configuration</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Store Search Memory</span>
+                  <p className="text-xs text-gray-500">Save web searches for all models to access</p>
+                </div>
+                <button
+                  onClick={() => updateWebSearchConfig({ store_search_memory: !webSearchConfig.store_search_memory })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    webSearchConfig.store_search_memory ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      webSearchConfig.store_search_memory ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Auto Search</span>
+                  <p className="text-xs text-gray-500">Automatically search for current information</p>
+                </div>
+                <button
+                  onClick={() => updateWebSearchConfig({ auto_search_enabled: !webSearchConfig.auto_search_enabled })}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    webSearchConfig.auto_search_enabled ? 'bg-blue-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      webSearchConfig.auto_search_enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Web Search History */}
+          <div>
+            <h3 className="font-medium text-gray-900 dark:text-white mb-3">Search History ({webSearchMemory.length})</h3>
+            {webSearchMemory.length > 0 ? (
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {webSearchMemory.map((search) => (
+                  <div key={search.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{search.query}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(search.timestamp).toLocaleString()} • {search.sources.join(', ')} • Model: {search.model_used}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => deleteSpecificSearch(search.id)}
+                      className="ml-3 p-1 text-red-500 hover:text-red-700 rounded"
+                      title="Delete this search"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                <Search size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No web searches stored yet</p>
+                <p className="text-xs mt-1">Web searches will appear here when you use the web search feature</p>
               </div>
             )}
           </div>
