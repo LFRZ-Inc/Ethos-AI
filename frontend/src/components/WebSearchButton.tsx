@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Globe, Settings } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { API_BASE_URL } from '../config';
 
 interface WebSearchConfig {
   auto_search_enabled: boolean;
@@ -42,7 +43,7 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
 
   const loadWebSearchConfig = async () => {
     try {
-      const response = await fetch('/api/web-search/config');
+      const response = await fetch(`${API_BASE_URL}/api/web-search/config`);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
@@ -70,7 +71,7 @@ const WebSearchButton: React.FC<WebSearchButtonProps> = ({
 
   const updateConfig = async (updates: Partial<WebSearchConfig>) => {
     try {
-      const response = await fetch('/api/web-search/config', {
+      const response = await fetch(`${API_BASE_URL}/api/web-search/config`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
