@@ -23,11 +23,18 @@ import logging
 # Import RAG system
 from web_search_apis import rag_system, web_apis
 
+# Web search configuration
+WEB_SEARCH_CONFIG = {
+    "auto_search_enabled": True,  # Can be toggled by user
+    "show_search_indicator": True,
+    "manual_search_available": True
+}
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Ethos AI - Production Client Storage", version="5.3.0-PRODUCTION")
+app = FastAPI(title="Ethos AI - Production Client Storage", version="5.4.0-HYBRID-WEB-SEARCH")
 
 app.add_middleware(
     CORSMiddleware,
@@ -205,8 +212,8 @@ def select_best_model(user_message: str, available_models: List[str]) -> str:
     return "ethos-phi"  # Default fallback
 
 # Generate real AI response
-def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] = None) -> Dict:
-    """Generate response using real AI model with RAM monitoring"""
+def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] = None, force_web_search: bool = False) -> Dict:
+    """Generate response using real AI model with RAM monitoring and hybrid web search"""
     try:
         model_info = AVAILABLE_MODELS.get(model_id)
         if not model_info:
@@ -219,8 +226,11 @@ def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] 
         ollama_processes_before = get_ollama_process_ram()
         estimated_ram = estimate_model_ram_usage(ollama_model)
         
-        # Build context-aware prompt
-        full_prompt = build_context_prompt(prompt, device_context)
+        # Build context-aware prompt with hybrid search
+        prompt_data = build_context_prompt(prompt, device_context, force_web_search)
+        full_prompt = prompt_data["prompt"]
+        search_performed = prompt_data["search_performed"]
+        search_context = prompt_data["search_context"]
         
         # Generate response using Ollama
         start_time = time.time()
@@ -251,7 +261,16 @@ def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] 
             return {
                 "response": result.stdout.strip(),
                 "ram_usage": ram_used,
-                "model_used": model_id
+                "model_used": model_id,
+                "web_search": {
+                    "performed": search_performed,
+                    "context": search_context,
+                    "sources_used": {
+                        "duckduckgo": "duckduckgo" in search_context.lower(),
+                        "wikipedia": "wikipedia" in search_context.lower(),
+                        "news": "news" in search_context.lower()
+                    }
+                }
             }
         else:
             raise Exception(f"Model generation failed: {result.stderr}")
@@ -260,13 +279,27 @@ def generate_ai_response(prompt: str, model_id: str, device_context: List[Dict] 
         logger.error(f"Error generating response: {e}")
         raise e
 
-def build_context_prompt(prompt: str, device_context: List[Dict] = None) -> str:
-    """Build a context-aware prompt with RAG enhancement"""
-    # First, enhance prompt with web search if needed
-    enhanced_prompt = rag_system.enhance_prompt(prompt)
+def build_context_prompt(prompt: str, device_context: List[Dict] = None, force_web_search: bool = False) -> Dict:
+    """Build a context-aware prompt with hybrid RAG enhancement"""
+    search_performed = False
+    search_context = ""
+    
+    # Check if we should perform web search
+    should_search = force_web_search or (WEB_SEARCH_CONFIG["auto_search_enabled"] and rag_system.should_search(prompt))
+    
+    if should_search:
+        search_performed = True
+        search_context = rag_system.get_context_for_response(prompt)
+        enhanced_prompt = rag_system.enhance_prompt(prompt)
+    else:
+        enhanced_prompt = prompt
     
     if not device_context:
-        return enhanced_prompt
+        return {
+            "prompt": enhanced_prompt,
+            "search_performed": search_performed,
+            "search_context": search_context
+        }
     
     # Build context from device memory
     context_text = "\n\nPrevious conversation context:\n"
@@ -278,7 +311,11 @@ def build_context_prompt(prompt: str, device_context: List[Dict] = None) -> str:
     
     context_text += f"\nCurrent message: {enhanced_prompt}\n\nPlease respond to the current message, taking into account the conversation context above."
     
-    return context_text
+    return {
+        "prompt": context_text,
+        "search_performed": search_performed,
+        "search_context": search_context
+    }
 
 # File processing functions
 def process_uploaded_file(file_content: bytes, filename: str) -> Dict:
@@ -322,6 +359,7 @@ class ChatWithMemoryRequest(BaseModel):
     device_id: str
     device_memory: Optional[List[Dict]] = None  # Client sends their memory
     model_override: Optional[str] = None
+    force_web_search: Optional[bool] = False
 
 class ChatWithMemoryResponse(BaseModel):
     response: str
@@ -331,6 +369,7 @@ class ChatWithMemoryResponse(BaseModel):
     context_used: bool
     storage_size_kb: float
     ram_usage: Dict
+    web_search: Optional[Dict] = None
 
 # Check Ollama on startup
 OLLAMA_AVAILABLE = check_ollama_availability()
@@ -383,11 +422,12 @@ async def chat_with_client_memory(request: ChatWithMemoryRequest):
         else:
             selected_model = select_best_model(request.message, available_models)
         
-        # Generate real AI response
+        # Generate real AI response with hybrid web search
         if OLLAMA_AVAILABLE:
-            response_data = generate_ai_response(request.message, selected_model, device_context)
+            response_data = generate_ai_response(request.message, selected_model, device_context, request.force_web_search)
             response = response_data["response"]
             ram_usage = response_data["ram_usage"]
+            web_search_info = response_data.get("web_search", {})
         else:
             raise HTTPException(status_code=503, detail="Ollama not available - AI service unavailable")
         
@@ -418,7 +458,8 @@ async def chat_with_client_memory(request: ChatWithMemoryRequest):
             updated_memory=updated_memory,
             context_used=len(device_context) > 0,
             storage_size_kb=storage_size_kb,
-            ram_usage=ram_usage
+            ram_usage=ram_usage,
+            web_search=web_search_info
         )
         
     except Exception as e:
@@ -723,6 +764,37 @@ async def set_news_api_key(api_key: str):
             "success": False,
             "error": str(e)
         }
+
+@app.get("/api/web-search/config")
+async def get_web_search_config():
+    """Get web search configuration"""
+    return {
+        "auto_search_enabled": WEB_SEARCH_CONFIG["auto_search_enabled"],
+        "show_search_indicator": WEB_SEARCH_CONFIG["show_search_indicator"],
+        "manual_search_available": WEB_SEARCH_CONFIG["manual_search_available"],
+        "sources_available": {
+            "duckduckgo": True,
+            "wikipedia": True,
+            "news": web_apis.news_api_key is not None
+        }
+    }
+
+@app.post("/api/web-search/config")
+async def update_web_search_config(auto_search_enabled: bool = None, show_search_indicator: bool = None):
+    """Update web search configuration"""
+    global WEB_SEARCH_CONFIG
+    
+    if auto_search_enabled is not None:
+        WEB_SEARCH_CONFIG["auto_search_enabled"] = auto_search_enabled
+    
+    if show_search_indicator is not None:
+        WEB_SEARCH_CONFIG["show_search_indicator"] = show_search_indicator
+    
+    return {
+        "success": True,
+        "config": WEB_SEARCH_CONFIG,
+        "message": "Web search configuration updated"
+    }
 
 @app.get("/")
 async def root():

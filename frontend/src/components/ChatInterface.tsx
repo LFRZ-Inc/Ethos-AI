@@ -11,6 +11,7 @@ import ModelSystemStatus from './Model70BStatus';
 import ToolPanel from './ToolPanel';
 import VoiceInput from './VoiceInput';
 import ThemeSwitcher from './ThemeSwitcher';
+import WebSearchButton from './WebSearchButton';
 import { API_ENDPOINTS, API_BASE_URL } from '../config';
 
 // Device memory management
@@ -109,6 +110,10 @@ const ChatInterface: React.FC = () => {
   const { currentConversationId, selectedModel, useTools, setCurrentConversation } = useAppStore();
   const { conversations, loadConversations, addConversation } = useConversationStore();
   const [networkStatus, setNetworkStatus] = useState<'checking' | 'connected' | 'disconnected'>('checking');
+  const [lastWebSearch, setLastWebSearch] = useState<{
+    performed: boolean;
+    sourcesUsed: { duckduckgo?: boolean; wikipedia?: boolean; news?: boolean };
+  } | null>(null);
   
   // Device memory instance
   const deviceMemory = DeviceMemory.getInstance();
@@ -232,7 +237,7 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleSend = async () => {
+  const handleSend = async (forceWebSearch: boolean = false) => {
     if (!input.trim() || isLoading) return;
 
     const userMessage: Message = {
@@ -255,6 +260,7 @@ const ChatInterface: React.FC = () => {
       console.log('Sending message to:', API_ENDPOINTS.clientChat);
       console.log('Device ID:', deviceMemory.getDeviceId());
       console.log('Device memory size:', deviceMemory.getMemorySize(), 'KB');
+      console.log('Force web search:', forceWebSearch);
       
       const response = await fetch(API_ENDPOINTS.clientChat, {
         method: 'POST',
@@ -264,6 +270,7 @@ const ChatInterface: React.FC = () => {
           device_id: deviceMemory.getDeviceId(),
           device_memory: deviceMemoryData,
           model_override: selectedModel || null,
+          force_web_search: forceWebSearch,
         }),
       });
 
@@ -295,6 +302,25 @@ const ChatInterface: React.FC = () => {
         console.log('Updated device memory, new size:', result.storage_size_kb, 'KB');
       }
 
+      // Handle web search information
+      if (result.web_search) {
+        setLastWebSearch({
+          performed: result.web_search.performed,
+          sourcesUsed: result.web_search.sources_used || {}
+        });
+        
+        if (result.web_search.performed) {
+          const sources = [];
+          if (result.web_search.sources_used?.duckduckgo) sources.push('DuckDuckGo');
+          if (result.web_search.sources_used?.wikipedia) sources.push('Wikipedia');
+          if (result.web_search.sources_used?.news) sources.push('News');
+          
+          if (sources.length > 0) {
+            toast.success(`Web search performed using: ${sources.join(', ')}`);
+          }
+        }
+      }
+
       // Show context usage info
       if (result.context_used) {
         toast.success(`Used conversation context (${deviceMemoryData.length} previous messages)`);
@@ -313,7 +339,7 @@ const ChatInterface: React.FC = () => {
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSend(false);
     }
   };
 
@@ -550,6 +576,14 @@ const ChatInterface: React.FC = () => {
           </div>
           
           <div className="flex space-x-2">
+            {/* Web Search Button */}
+            <WebSearchButton
+              onWebSearch={(forceSearch) => handleSend(forceSearch)}
+              isSearching={isLoading}
+              searchPerformed={lastWebSearch?.performed || false}
+              sourcesUsed={lastWebSearch?.sourcesUsed || {}}
+            />
+            
             <label className="cursor-pointer p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">
               <Upload size={20} />
               <input
@@ -564,7 +598,7 @@ const ChatInterface: React.FC = () => {
             </label>
             
             <button
-              onClick={handleSend}
+              onClick={() => handleSend(false)}
               disabled={!input.trim() || isLoading}
               className="p-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
             >
